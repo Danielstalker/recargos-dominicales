@@ -3,19 +3,13 @@ import datetime
 class Empleado:
     """
     Representa a un empleado con su información básica, tipo de contrato y horario estándar.
+    El valor de la hora ordinaria ahora es una configuración global.
     """
-    def __init__(self, nombre, salario_mensual, standard_daily_hours=8, tipo_contrato="indefinido"):
+    def __init__(self, nombre, standard_daily_hours=8, tipo_contrato="indefinido"):
         self.nombre = nombre
-        self.salario_mensual = salario_mensual
         self.standard_daily_hours = standard_daily_hours # Horas diarias estándar de trabajo
         self.tipo_contrato = tipo_contrato
         self.jornadas_registradas = [] # Lista de diccionarios para registrar jornadas (fecha, hora_entrada, hora_salida)
-
-    def obtener_valor_hora_ordinaria(self):
-        """Calcula el valor de la hora ordinaria basándose en el salario mensual."""
-        # Se asume un mes laboral de 30 días y una jornada de 8 horas diarias (240 horas/mes)
-        horas_mes = 30 * 8
-        return self.salario_mensual / horas_mes
 
     def registrar_jornada(self, fecha, hora_entrada, hora_salida):
         """
@@ -31,7 +25,7 @@ class Empleado:
 class CalculadoraRecargos:
     """
     Clase para manejar la lógica de cálculo de recargos dominicales y festivos,
-    así como la gestión de días festivos.
+    así como la gestión de días festivos y la configuración global de valores.
     """
     def __init__(self):
         # Porcentajes de recargo según la ley colombiana
@@ -39,6 +33,9 @@ class CalculadoraRecargos:
         self.PORCENTAJE_HORA_EXTRA_DIURNA = 0.25 # Recargo adicional sobre la hora ordinaria
         self.PORCENTAJE_HORA_EXTRA_NOCTURNA = 0.75 # Recargo adicional sobre la hora ordinaria (entre 9pm y 6am)
         self.PORCENTAJE_HORA_ORDINARIA_NOCTURNA = 0.35 # Para horas ordinarias nocturnas (no aplica en domingo/festivo)
+
+        # Nuevo: Valor de la hora ordinaria global para todos los empleados
+        self.valor_hora_ordinaria_global = 5000.0 # Valor por defecto
 
         # Días festivos de Colombia (pueden ser actualizados manualmente o desde una API externa)
         # Formato: datetime.date(año, mes, día)
@@ -62,6 +59,13 @@ class CalculadoraRecargos:
             datetime.date(2025, 12, 25) # Navidad
         ]
         self.dias_festivos.sort()
+
+    def actualizar_valor_hora_ordinaria_global(self, nuevo_valor):
+        """Actualiza el valor global de la hora ordinaria."""
+        if not isinstance(nuevo_valor, (int, float)) or nuevo_valor <= 0:
+            raise ValueError("El valor de la hora ordinaria debe ser un número positivo.")
+        self.valor_hora_ordinaria_global = float(nuevo_valor)
+        return f"Valor de la hora ordinaria global actualizado a ${self.valor_hora_ordinaria_global:,.2f}."
 
     def es_festivo_o_domingo(self, fecha):
         """Verifica si una fecha dada es domingo o un día festivo."""
@@ -138,7 +142,7 @@ class CalculadoraRecargos:
     def calcular_recargos_jornada(self, empleado, jornada):
         """
         Calcula el recargo total para una jornada específica de un empleado.
-        Ahora utiliza la categorización de horas.
+        Ahora utiliza la categorización de horas y el valor de la hora ordinaria global.
         """
         fecha = jornada["fecha"]
         hora_entrada = jornada["hora_entrada"]
@@ -147,7 +151,8 @@ class CalculadoraRecargos:
         # Obtener las horas categorizadas de la nueva función auxiliar
         categorized_hours = self._categorize_shift_hours(empleado, fecha, hora_entrada, hora_salida)
 
-        valor_hora_ordinaria = empleado.obtener_valor_hora_ordinaria()
+        # Usar el valor de la hora ordinaria global
+        valor_hora_ordinaria = self.valor_hora_ordinaria_global 
         recargo_total_jornada = 0.0
         horas_con_recargo_jornada = 0.0 # Usar float para acumular horas
 
@@ -194,10 +199,9 @@ class CalculadoraRecargos:
         return recargo_total_jornada, horas_con_recargo_jornada, categorized_hours
 
     def generar_reporte_empleado(self, empleado):
-        """Genera un reporte detallado para un empleado específico."""
+        """Genera un reporte detallado para un empleado específico, incluyendo acumulados por tipo de hora."""
         reporte_str = f"--- Reporte de Recargos para {empleado.nombre} ---\n"
-        reporte_str += f"Salario Mensual: ${empleado.salario_mensual:,.2f}\n"
-        reporte_str += f"Valor Hora Ordinaria: ${empleado.obtener_valor_hora_ordinaria():,.2f}\n"
+        reporte_str += f"Valor Hora Ordinaria Global: ${self.valor_hora_ordinaria_global:,.2f}\n" # Usar global
         reporte_str += f"Horas Diarias Estándar: {empleado.standard_daily_hours} horas\n"
         reporte_str += "\nDetalle de Jornadas:\n"
 
@@ -226,7 +230,7 @@ class CalculadoraRecargos:
 
             recargo, horas_recargo, categorized_hours = self.calcular_recargos_jornada(empleado, jornada)
             
-            reporte_str += f" Jornada del {fecha.strftime('%Y-%m-%d')} ({hora_entrada.strftime('%H:%M')} - {hora_salida.strftime('%H:%M')}):\n"
+            reporte_str += f" Jornada del {fecha.strftime('%Y-%m-%d')} ({hora_entrada.strftime('%I:%M %p')} - {hora_salida.strftime('%I:%M %p')}):\n"
             reporte_str += f"   Horas Ordinarias (Diurnas): {categorized_hours['horas_ordinarias']:.2f}h\n"
             reporte_str += f"   Horas Ordinarias (Nocturnas): {categorized_hours['horas_ordinarias_nocturnas']:.2f}h\n"
             reporte_str += f"   Horas Extras (Diurnas): {categorized_hours['horas_extras_diurnas']:.2f}h\n"
@@ -264,6 +268,7 @@ class CalculadoraRecargos:
         en un período dado.
         """
         reporte_str = "--- Reporte Consolidado de Recargos ---\n"
+        reporte_str += f"Valor Hora Ordinaria Global: ${self.valor_hora_ordinaria_global:,.2f}\n" # Usar global
         if periodo_inicio and periodo_fin:
             reporte_str += f"Período: {periodo_inicio.strftime('%Y-%m-%d')} a {periodo_fin.strftime('%Y-%m-%d')}\n"
         elif periodo_inicio:

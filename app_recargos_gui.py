@@ -13,8 +13,10 @@ class RecargosApp:
         self.empleados = {} # Diccionario para almacenar empleados
         self.time_options = self._generate_time_options() # Genera la lista de opciones de hora
 
-        # Variable para almacenar el nombre del empleado seleccionado para edición
+        # Variable para almacenar el nombre del empleado seleccionado para edición/visualización de jornadas
         self._selected_employee_name_for_edit = None 
+        # Variable para almacenar el índice de la jornada seleccionada para edición
+        self._selected_jornada_index_for_edit = None
 
         self._crear_widgets_iniciales()
         # Puedes descomentar la siguiente línea si quieres precargar datos de ejemplo para pruebas
@@ -64,100 +66,145 @@ class RecargosApp:
 
 
     def _setup_jornadas_tab(self):
-        tk.Label(self.frame_jornadas, text="--- Gestión de Empleados ---", font=("Arial", 10, "bold")).grid(row=0, column=0, columnspan=3, pady=5)
+        tk.Label(self.frame_jornadas, text="--- Creación de Empleados ---", font=("Arial", 10, "bold")).grid(row=0, column=0, columnspan=3, pady=5)
         
         tk.Label(self.frame_jornadas, text="Nombre del Empleado:").grid(row=1, column=0, padx=5, pady=5, sticky="w")
         self.entry_nombre_empleado = tk.Entry(self.frame_jornadas)
         self.entry_nombre_empleado.grid(row=1, column=1, padx=5, pady=5, sticky="ew")
 
-        tk.Label(self.frame_jornadas, text="Salario Mensual:").grid(row=2, column=0, padx=5, pady=5, sticky="w")
-        self.entry_salario_empleado = tk.Entry(self.frame_jornadas)
-        self.entry_salario_empleado.grid(row=2, column=1, padx=5, pady=5, sticky="ew")
+        # ELIMINADO: Campo de Salario Mensual / Valor Hora Ordinaria por empleado
+        # Ahora se usa el valor global de la hora ordinaria desde Configuración
 
-        tk.Label(self.frame_jornadas, text="Horas Diarias Estándar:").grid(row=3, column=0, padx=5, pady=5, sticky="w")
+        tk.Label(self.frame_jornadas, text="Horas Diarias Estándar:").grid(row=2, column=0, padx=5, pady=5, sticky="w") # Ajuste de fila
         self.entry_standard_daily_hours = tk.Entry(self.frame_jornadas)
         self.entry_standard_daily_hours.insert(0, "8") # Valor por defecto: 8 horas
-        self.entry_standard_daily_hours.grid(row=3, column=1, padx=5, pady=5, sticky="ew")
+        self.entry_standard_daily_hours.grid(row=2, column=1, padx=5, pady=5, sticky="ew") # Ajuste de fila
 
         self.btn_crear_empleado = tk.Button(self.frame_jornadas, text="Crear Empleado", command=self._crear_empleado)
-        self.btn_crear_empleado.grid(row=4, column=0, columnspan=2, pady=10)
+        self.btn_crear_empleado.grid(row=3, column=0, columnspan=2, pady=10) # Ajuste de fila
 
         self.empleados_combobox = ttk.Combobox(self.frame_jornadas, state="readonly")
-        self.empleados_combobox.grid(row=5, column=1, padx=5, pady=5, sticky="ew")
+        self.empleados_combobox.grid(row=4, column=1, padx=5, pady=5, sticky="ew") # Ajuste de fila
         self.empleados_combobox.bind("<<ComboboxSelected>>", self._on_empleado_selected)
-        tk.Label(self.frame_jornadas, text="Seleccionar Empleado:").grid(row=5, column=0, padx=5, pady=5, sticky="w")
+        tk.Label(self.frame_jornadas, text="Seleccionar Empleado:").grid(row=4, column=0, padx=5, pady=5, sticky="w") # Ajuste de fila
 
-        tk.Label(self.frame_jornadas, text="--- Registro de Jornada (Horas Reales) ---", font=("Arial", 10, "bold")).grid(row=6, column=0, columnspan=3, pady=10)
+        tk.Label(self.frame_jornadas, text="--- Registro de Jornada (Horas Reales) ---", font=("Arial", 10, "bold")).grid(row=5, column=0, columnspan=3, pady=10) # Ajuste de fila
 
-        tk.Label(self.frame_jornadas, text="Fecha (YYYY-MM-DD):").grid(row=7, column=0, padx=5, pady=5, sticky="w")
+        tk.Label(self.frame_jornadas, text="Fecha (YYYY-MM-DD):").grid(row=6, column=0, padx=5, pady=5, sticky="w") # Ajuste de fila
         self.entry_fecha_jornada = tk.Entry(self.frame_jornadas)
-        self.entry_fecha_jornada.grid(row=7, column=1, padx=5, pady=5, sticky="ew")
+        self.entry_fecha_jornada.grid(row=6, column=1, padx=5, pady=5, sticky="ew") # Ajuste de fila
 
-        tk.Label(self.frame_jornadas, text="Hora Entrada:").grid(row=8, column=0, padx=5, pady=5, sticky="w")
+        tk.Label(self.frame_jornadas, text="Hora Entrada:").grid(row=7, column=0, padx=5, pady=5, sticky="w") # Ajuste de fila
         self.combo_hora_entrada = ttk.Combobox(self.frame_jornadas, values=self.time_options, state="readonly")
-        self.combo_hora_entrada.grid(row=8, column=1, padx=5, pady=5, sticky="ew")
+        self.combo_hora_entrada.grid(row=7, column=1, padx=5, pady=5, sticky="ew") # Ajuste de fila
         self.combo_hora_entrada.set("08:00 AM") # Valor por defecto
 
-        tk.Label(self.frame_jornadas, text="Hora Salida:").grid(row=9, column=0, padx=5, pady=5, sticky="w")
+        tk.Label(self.frame_jornadas, text="Hora Salida:").grid(row=8, column=0, padx=5, pady=5, sticky="w") # Ajuste de fila
         self.combo_hora_salida = ttk.Combobox(self.frame_jornadas, values=self.time_options, state="readonly")
-        self.combo_hora_salida.grid(row=9, column=1, padx=5, pady=5, sticky="ew")
+        self.combo_hora_salida.grid(row=8, column=1, padx=5, pady=5, sticky="ew") # Ajuste de fila
         self.combo_hora_salida.set("05:00 PM") # Valor por defecto
 
         self.btn_registrar_jornada = tk.Button(self.frame_jornadas, text="Registrar Jornada", command=self._registrar_jornada)
-        self.btn_registrar_jornada.grid(row=10, column=0, columnspan=2, pady=10)
+        self.btn_registrar_jornada.grid(row=9, column=0, columnspan=2, pady=10) # Ajuste de fila
         
     def _setup_gestion_empleados_tab(self):
         tk.Label(self.frame_gestion_empleados, text="--- Gestión de Registros de Empleados ---", font=("Arial", 10, "bold")).pack(pady=10)
 
-        # Lista de empleados
-        tk.Label(self.frame_gestion_empleados, text="Seleccionar Empleado:").pack(pady=5)
-        self.empleados_listbox = tk.Listbox(self.frame_gestion_empleados, width=50, height=10)
-        self.empleados_listbox.pack(pady=5, padx=10, fill="both", expand=True)
+        # Sección de selección y edición de empleado
+        empleado_selection_frame = ttk.LabelFrame(self.frame_gestion_empleados, text="Seleccionar y Editar Empleado")
+        empleado_selection_frame.pack(pady=5, padx=10, fill="x", expand=False)
+
+        tk.Label(empleado_selection_frame, text="Lista de Empleados:").pack(pady=2)
+        self.empleados_listbox = tk.Listbox(empleado_selection_frame, width=60, height=8)
+        self.empleados_listbox.pack(pady=2, padx=5, fill="both", expand=True)
         self.empleados_listbox.bind("<<ListboxSelect>>", self._seleccionar_empleado_para_edicion)
 
-        # Controles de edición
-        edit_frame = ttk.LabelFrame(self.frame_gestion_empleados, text="Editar/Eliminar Empleado")
-        edit_frame.pack(pady=10, padx=10, fill="x", expand=False)
+        edit_empleado_frame = ttk.Frame(empleado_selection_frame)
+        edit_empleado_frame.pack(pady=5, padx=5, fill="x", expand=True)
 
-        tk.Label(edit_frame, text="Nombre:").grid(row=0, column=0, padx=5, pady=2, sticky="w")
-        self.edit_nombre_empleado = tk.Entry(edit_frame)
+        tk.Label(edit_empleado_frame, text="Nombre:").grid(row=0, column=0, padx=5, pady=2, sticky="w")
+        self.edit_nombre_empleado = tk.Entry(edit_empleado_frame)
         self.edit_nombre_empleado.grid(row=0, column=1, padx=5, pady=2, sticky="ew")
 
-        tk.Label(edit_frame, text="Salario Mensual:").grid(row=1, column=0, padx=5, pady=2, sticky="w")
-        self.edit_salario_empleado = tk.Entry(edit_frame)
-        self.edit_salario_empleado.grid(row=1, column=1, padx=5, pady=2, sticky="ew")
+        # ELIMINADO: Campo de Valor Hora Ordinaria por empleado
+        # tk.Label(edit_empleado_frame, text="Valor Hora Ordinaria:").grid(row=1, column=0, padx=5, pady=2, sticky="w")
+        # self.edit_valor_hora_ordinaria = tk.Entry(edit_empleado_frame)
+        # self.edit_valor_hora_ordinaria.grid(row=1, column=1, padx=5, pady=2, sticky="ew")
 
-        tk.Label(edit_frame, text="Horas Diarias Estándar:").grid(row=2, column=0, padx=5, pady=2, sticky="w")
-        self.edit_standard_daily_hours = tk.Entry(edit_frame)
-        self.edit_standard_daily_hours.grid(row=2, column=1, padx=5, pady=2, sticky="ew")
+        tk.Label(edit_empleado_frame, text="Horas Diarias Estándar:").grid(row=1, column=0, padx=5, pady=2, sticky="w") # Ajuste de fila
+        self.edit_standard_daily_hours = tk.Entry(edit_empleado_frame)
+        self.edit_standard_daily_hours.grid(row=1, column=1, padx=5, pady=2, sticky="ew") # Ajuste de fila
 
-        # Botones de acción
-        button_frame = ttk.Frame(edit_frame)
-        button_frame.grid(row=3, column=0, columnspan=2, pady=10)
+        button_frame_empleado = ttk.Frame(empleado_selection_frame)
+        button_frame_empleado.pack(pady=5)
 
-        self.btn_guardar_cambios = tk.Button(button_frame, text="Guardar Cambios", command=self._guardar_cambios_empleado)
+        self.btn_guardar_cambios = tk.Button(button_frame_empleado, text="Guardar Cambios Empleado", command=self._guardar_cambios_empleado)
         self.btn_guardar_cambios.pack(side="left", padx=5)
 
-        self.btn_eliminar_empleado = tk.Button(button_frame, text="Eliminar Empleado", command=self._eliminar_empleado_gui)
+        self.btn_eliminar_empleado = tk.Button(button_frame_empleado, text="Eliminar Empleado", command=self._eliminar_empleado_gui)
         self.btn_eliminar_empleado.pack(side="left", padx=5)
 
-        edit_frame.columnconfigure(1, weight=1) # Permite que el campo de entrada se expanda
+        edit_empleado_frame.columnconfigure(1, weight=1)
 
-        self._actualizar_lista_gestion_empleados() # Cargar la lista al inicio de la pestaña
+        # Sección de registro de jornadas del empleado seleccionado
+        jornadas_empleado_frame = ttk.LabelFrame(self.frame_gestion_empleados, text="Jornadas del Empleado Seleccionado")
+        jornadas_empleado_frame.pack(pady=10, padx=10, fill="both", expand=True)
+
+        # Treeview para mostrar las jornadas
+        self.jornadas_treeview = ttk.Treeview(jornadas_empleado_frame, columns=("Fecha", "Entrada", "Salida"), show="headings")
+        self.jornadas_treeview.heading("Fecha", text="Fecha")
+        self.jornadas_treeview.heading("Entrada", text="Hora Entrada")
+        self.jornadas_treeview.heading("Salida", text="Hora Salida")
+        self.jornadas_treeview.column("Fecha", width=100, anchor="center")
+        self.jornadas_treeview.column("Entrada", width=100, anchor="center")
+        self.jornadas_treeview.column("Salida", width=100, anchor="center")
+        self.jornadas_treeview.pack(pady=5, padx=5, fill="both", expand=True)
+        self.jornadas_treeview.bind("<<TreeviewSelect>>", self._seleccionar_jornada_para_edicion)
+
+        # Controles de edición de jornada
+        edit_jornada_frame = ttk.LabelFrame(jornadas_empleado_frame, text="Editar/Eliminar Jornada")
+        edit_jornada_frame.pack(pady=10, padx=5, fill="x", expand=False)
+
+        tk.Label(edit_jornada_frame, text="Fecha:").grid(row=0, column=0, padx=5, pady=2, sticky="w")
+        self.edit_jornada_fecha = tk.Entry(edit_jornada_frame)
+        self.edit_jornada_fecha.grid(row=0, column=1, padx=5, pady=2, sticky="ew")
+
+        tk.Label(edit_jornada_frame, text="Hora Entrada:").grid(row=1, column=0, padx=5, pady=2, sticky="w")
+        self.edit_jornada_hora_entrada = ttk.Combobox(edit_jornada_frame, values=self.time_options, state="readonly")
+        self.edit_jornada_hora_entrada.grid(row=1, column=1, padx=5, pady=2, sticky="ew")
+
+        tk.Label(edit_jornada_frame, text="Hora Salida:").grid(row=2, column=0, padx=5, pady=2, sticky="w")
+        self.edit_jornada_hora_salida = ttk.Combobox(edit_jornada_frame, values=self.time_options, state="readonly")
+        self.edit_jornada_hora_salida.grid(row=2, column=1, padx=5, pady=2, sticky="ew")
+
+        button_frame_jornada = ttk.Frame(edit_jornada_frame)
+        button_frame_jornada.grid(row=3, column=0, columnspan=2, pady=10)
+
+        self.btn_guardar_cambios_jornada = tk.Button(button_frame_jornada, text="Guardar Cambios Jornada", command=self._guardar_cambios_jornada)
+        self.btn_guardar_cambios_jornada.pack(side="left", padx=5)
+
+        self.btn_eliminar_jornada = tk.Button(button_frame_jornada, text="Eliminar Jornada", command=self._eliminar_jornada_gui)
+        self.btn_eliminar_jornada.pack(side="left", padx=5)
+
+        edit_jornada_frame.columnconfigure(1, weight=1)
+
+        self._actualizar_lista_gestion_empleados() # Cargar la lista de empleados al inicio de la pestaña
 
     def _actualizar_lista_gestion_empleados(self):
         """Actualiza la Listbox de la pestaña de gestión de empleados."""
         self.empleados_listbox.delete(0, tk.END)
         for nombre in sorted(self.empleados.keys()):
             empleado = self.empleados[nombre]
-            self.empleados_listbox.insert(tk.END, f"{empleado.nombre} (Salario: ${empleado.salario_mensual:,.0f}, Horas Est.: {empleado.standard_daily_hours}h)")
+            # Mostrar solo nombre y horas estándar, ya que el valor de la hora es global
+            self.empleados_listbox.insert(tk.END, f"{empleado.nombre} (Horas Est.: {empleado.standard_daily_hours}h)")
 
     def _seleccionar_empleado_para_edicion(self, event=None):
-        """Carga los datos del empleado seleccionado en los campos de edición."""
+        """Carga los datos del empleado seleccionado en los campos de edición y sus jornadas."""
         selected_indices = self.empleados_listbox.curselection()
         if not selected_indices:
             self._limpiar_campos_edicion_empleado()
             self._selected_employee_name_for_edit = None
+            self._actualizar_lista_jornadas_empleado_seleccionado(None) # Limpiar jornadas
             return
 
         selected_name_display = self.empleados_listbox.get(selected_indices[0])
@@ -169,18 +216,24 @@ class RecargosApp:
             self._selected_employee_name_for_edit = original_name # Guardar el nombre original para la edición
             self.edit_nombre_empleado.delete(0, tk.END)
             self.edit_nombre_empleado.insert(0, empleado.nombre)
-            self.edit_salario_empleado.delete(0, tk.END)
-            self.edit_salario_empleado.insert(0, str(empleado.salario_mensual))
+            # ELIMINADO: Cargar Valor Hora Ordinaria por empleado
+            # self.edit_valor_hora_ordinaria.delete(0, tk.END)
+            # self.edit_valor_hora_ordinaria.insert(0, str(empleado.valor_hora_ordinaria))
             self.edit_standard_daily_hours.delete(0, tk.END)
             self.edit_standard_daily_hours.insert(0, str(empleado.standard_daily_hours))
+            
+            self._actualizar_lista_jornadas_empleado_seleccionado(empleado) # Cargar las jornadas
+            self._limpiar_campos_edicion_jornada() # Limpiar campos de edición de jornada
         else:
             self._limpiar_campos_edicion_empleado()
             self._selected_employee_name_for_edit = None
+            self._actualizar_lista_jornadas_empleado_seleccionado(None)
 
     def _limpiar_campos_edicion_empleado(self):
         """Limpia los campos de entrada de la sección de edición de empleado."""
         self.edit_nombre_empleado.delete(0, tk.END)
-        self.edit_salario_empleado.delete(0, tk.END)
+        # ELIMINADO: Limpiar campo de Valor Hora Ordinaria por empleado
+        # self.edit_valor_hora_ordinaria.delete(0, tk.END) 
         self.edit_standard_daily_hours.delete(0, tk.END)
 
     def _guardar_cambios_empleado(self):
@@ -191,17 +244,17 @@ class RecargosApp:
 
         original_name = self._selected_employee_name_for_edit
         new_name = self.edit_nombre_empleado.get().strip()
-        new_salario_str = self.edit_salario_empleado.get().strip()
+        # ELIMINADO: new_valor_hora_str = self.edit_valor_hora_ordinaria.get().strip() 
         new_standard_hours_str = self.edit_standard_daily_hours.get().strip()
 
-        if not new_name or not new_salario_str or not new_standard_hours_str:
-            messagebox.showerror("Error", "Todos los campos del empleado deben estar llenos.")
+        if not new_name or not new_standard_hours_str: # Ajuste de validación
+            messagebox.showerror("Error", "El nombre y las horas diarias estándar del empleado deben estar llenos.")
             return
 
         try:
-            new_salario = float(new_salario_str)
-            if new_salario <= 0:
-                raise ValueError("El salario debe ser un número positivo.")
+            # ELIMINADO: new_valor_hora = float(new_valor_hora_str) 
+            # if new_valor_hora <= 0:
+            #     raise ValueError("El valor de la hora ordinaria debe ser un número positivo.")
             new_standard_hours = int(new_standard_hours_str)
             if new_standard_hours <= 0:
                 raise ValueError("Las horas diarias estándar deben ser un número entero positivo.")
@@ -217,13 +270,14 @@ class RecargosApp:
         if new_name == original_name:
             # Actualizar el empleado existente
             empleado = self.empleados[original_name]
-            empleado.salario_mensual = new_salario
+            # empleado.valor_hora_ordinaria = new_valor_hora # ELIMINADO
             empleado.standard_daily_hours = new_standard_hours
             messagebox.showinfo("Éxito", f"Empleado '{new_name}' actualizado con éxito.")
         else:
             # Crear un nuevo empleado con el nuevo nombre y transferir las jornadas
             old_empleado = self.empleados.pop(original_name) # Eliminar el viejo
-            new_empleado = Empleado(new_name, new_salario, new_standard_hours, old_empleado.tipo_contrato)
+            # El constructor de Empleado ya no necesita valor_hora_ordinaria
+            new_empleado = Empleado(new_name, new_standard_hours, old_empleado.tipo_contrato) 
             new_empleado.jornadas_registradas = old_empleado.jornadas_registradas # Transferir jornadas
             self.empleados[new_name] = new_empleado # Añadir el nuevo
             messagebox.showinfo("Éxito", f"Empleado '{original_name}' renombrado a '{new_name}' y actualizado con éxito.")
@@ -231,6 +285,7 @@ class RecargosApp:
         self._limpiar_campos_edicion_empleado()
         self._selected_employee_name_for_edit = None
         self._actualizar_todas_las_listas_empleados() # Actualizar todos los combobox y listbox
+        self._actualizar_lista_jornadas_empleado_seleccionado(None) # Limpiar jornadas después de editar/renombrar empleado
 
     def _eliminar_empleado_gui(self):
         """Elimina un empleado seleccionado."""
@@ -249,8 +304,114 @@ class RecargosApp:
                 self._limpiar_campos_edicion_empleado()
                 self._selected_employee_name_for_edit = None
                 self._actualizar_todas_las_listas_empleados() # Actualizar todos los combobox y listbox
+                self._actualizar_lista_jornadas_empleado_seleccionado(None) # Limpiar jornadas
             else:
                 messagebox.showerror("Error", "Empleado no encontrado.")
+
+    def _actualizar_lista_jornadas_empleado_seleccionado(self, empleado):
+        """Actualiza el Treeview con las jornadas del empleado seleccionado."""
+        self.jornadas_treeview.delete(*self.jornadas_treeview.get_children()) # Limpiar Treeview
+        self._selected_jornada_index_for_edit = None # Resetear selección de jornada
+        self._limpiar_campos_edicion_jornada() # Limpiar campos de edición de jornada
+
+        if empleado:
+            # Usamos el índice de la jornada como iid para facilitar la edición/eliminación
+            for i, jornada in enumerate(empleado.jornadas_registradas):
+                self.jornadas_treeview.insert("", "end", iid=str(i), values=(
+                    jornada["fecha"].strftime('%Y-%m-%d'),
+                    jornada["hora_entrada"].strftime('%I:%M %p'),
+                    jornada["hora_salida"].strftime('%I:%M %p')
+                ))
+
+    def _seleccionar_jornada_para_edicion(self, event=None):
+        """Carga los datos de la jornada seleccionada en los campos de edición."""
+        selected_item_id = self.jornadas_treeview.focus()
+        if not selected_item_id:
+            self._limpiar_campos_edicion_jornada()
+            self._selected_jornada_index_for_edit = None
+            return
+
+        # El iid es el índice de la jornada en la lista del empleado
+        self._selected_jornada_index_for_edit = int(selected_item_id) 
+
+        empleado = self.empleados.get(self._selected_employee_name_for_edit)
+        if empleado and 0 <= self._selected_jornada_index_for_edit < len(empleado.jornadas_registradas):
+            jornada = empleado.jornadas_registradas[self._selected_jornada_index_for_edit]
+            
+            self.edit_jornada_fecha.delete(0, tk.END)
+            self.edit_jornada_fecha.insert(0, jornada["fecha"].strftime('%Y-%m-%d'))
+            
+            self.edit_jornada_hora_entrada.set(jornada["hora_entrada"].strftime('%I:%M %p'))
+            self.edit_jornada_hora_salida.set(jornada["hora_salida"].strftime('%I:%M %p'))
+        else:
+            self._limpiar_campos_edicion_jornada()
+            self._selected_jornada_index_for_edit = None
+
+    def _limpiar_campos_edicion_jornada(self):
+        """Limpia los campos de entrada de la sección de edición de jornada."""
+        self.edit_jornada_fecha.delete(0, tk.END)
+        self.edit_jornada_hora_entrada.set("08:00 AM") # Resetear a valor por defecto
+        self.edit_jornada_hora_salida.set("05:00 PM") # Resetear a valor por defecto
+
+    def _guardar_cambios_jornada(self):
+        """Guarda los cambios de una jornada editada."""
+        if self._selected_employee_name_for_edit is None or self._selected_jornada_index_for_edit is None:
+            messagebox.showwarning("Advertencia", "Seleccione un empleado y una jornada para guardar cambios.")
+            return
+
+        empleado = self.empleados.get(self._selected_employee_name_for_edit)
+        if not empleado:
+            messagebox.showerror("Error", "Empleado no encontrado.")
+            return
+
+        new_fecha_str = self.edit_jornada_fecha.get().strip()
+        new_hora_entrada_str = self.edit_jornada_hora_entrada.get().strip()
+        new_hora_salida_str = self.edit_jornada_hora_salida.get().strip()
+
+        if not new_fecha_str or not new_hora_entrada_str or not new_hora_salida_str:
+            messagebox.showerror("Error", "Todos los campos de la jornada deben estar llenos.")
+            return
+
+        try:
+            new_fecha = datetime.datetime.strptime(new_fecha_str, '%Y-%m-%d').date()
+            new_hora_entrada = datetime.datetime.strptime(new_hora_entrada_str, '%I:%M %p').time()
+            new_hora_salida = datetime.datetime.strptime(new_hora_salida_str, '%I:%M %p').time()
+        except ValueError as e:
+            messagebox.showerror("Error", f"Error en el formato de fecha/hora: {e}\nAsegúrese que la fecha es YYYY-MM-DD y las horas son HH:MM AM/PM.")
+            return
+
+        # Actualizar la jornada en la lista del empleado
+        empleado.jornadas_registradas[self._selected_jornada_index_for_edit] = {
+            "fecha": new_fecha,
+            "hora_entrada": new_hora_entrada,
+            "hora_salida": new_hora_salida
+        }
+        messagebox.showinfo("Éxito", f"Jornada actualizada con éxito para {empleado.nombre}.")
+        
+        self._actualizar_lista_jornadas_empleado_seleccionado(empleado) # Refrescar el Treeview
+        self._limpiar_campos_edicion_jornada() # Limpiar campos de edición de jornada
+        self._selected_jornada_index_for_edit = None # Resetear selección
+
+    def _eliminar_jornada_gui(self):
+        """Elimina una jornada seleccionada de un empleado."""
+        if self._selected_employee_name_for_edit is None or self._selected_jornada_index_for_edit is None:
+            messagebox.showwarning("Advertencia", "Seleccione un empleado y una jornada para eliminar.")
+            return
+
+        empleado = self.empleados.get(self._selected_employee_name_for_edit)
+        if not empleado:
+            messagebox.showerror("Error", "Empleado no encontrado.")
+            return
+
+        if messagebox.askyesno("Confirmar Eliminación", "¿Está seguro de que desea eliminar esta jornada?"):
+            if 0 <= self._selected_jornada_index_for_edit < len(empleado.jornadas_registradas):
+                del empleado.jornadas_registradas[self._selected_jornada_index_for_edit]
+                messagebox.showinfo("Éxito", "Jornada eliminada con éxito.")
+                self._actualizar_lista_jornadas_empleado_seleccionado(empleado) # Refrescar el Treeview
+                self._limpiar_campos_edicion_jornada() # Limpiar campos de edición de jornada
+                self._selected_jornada_index_for_edit = None # Resetear selección
+            else:
+                messagebox.showerror("Error", "Jornada no encontrada.")
 
 
     def _setup_reportes_tab(self):
@@ -288,7 +449,7 @@ class RecargosApp:
         self.btn_agregar_festivo.pack(pady=5)
 
         self.btn_eliminar_festivo = tk.Button(self.frame_festivos, text="Eliminar Festivo", command=self._eliminar_festivo_gui)
-        self.btn_eliminar_festivo.pack(pady=5) # Corregido el nombre del atributo
+        self.btn_eliminar_festivo.pack(pady=5) 
         
         tk.Label(self.frame_festivos, text="Días Festivos Actuales:").pack(pady=5)
         self.festivos_listbox = tk.Listbox(self.frame_festivos, width=30, height=10)
@@ -296,7 +457,16 @@ class RecargosApp:
         self._actualizar_lista_festivos()
 
     def _setup_config_tab(self):
-        tk.Label(self.frame_config, text="--- Configuración de Porcentajes ---", font=("Arial", 10, "bold")).pack(pady=10)
+        tk.Label(self.frame_config, text="--- Configuración de Porcentajes y Valores ---", font=("Arial", 10, "bold")).pack(pady=10)
+
+        # Nuevo: Campo para el Valor Hora Ordinaria Global
+        tk.Label(self.frame_config, text=f"Valor Hora Ordinaria Global (Actual: ${self.calculadora.valor_hora_ordinaria_global:,.2f}):").pack(pady=2)
+        self.entry_valor_hora_ordinaria_global = tk.Entry(self.frame_config)
+        self.entry_valor_hora_ordinaria_global.insert(0, str(self.calculadora.valor_hora_ordinaria_global))
+        self.entry_valor_hora_ordinaria_global.pack(pady=2)
+        self.btn_actualizar_valor_hora_ordinaria_global = tk.Button(self.frame_config, text="Actualizar Valor Hora Ordinaria", command=self._actualizar_valor_hora_ordinaria_global_gui)
+        self.btn_actualizar_valor_hora_ordinaria_global.pack(pady=5)
+
 
         tk.Label(self.frame_config, text=f"Recargo Dominical/Festivo (Actual: {self.calculadora.PORCENTAJE_RECARGO_DOMINICAL_FESTIVO*100:.0f}%):").pack(pady=2)
         self.entry_dominical_config = tk.Entry(self.frame_config)
@@ -318,43 +488,38 @@ class RecargosApp:
         self.entry_ordinaria_nocturna_config.insert(0, str(self.calculadora.PORCENTAJE_HORA_ORDINARIA_NOCTURNA * 100))
         self.entry_ordinaria_nocturna_config.pack(pady=2)
 
-        self.btn_actualizar_porcentajes = tk.Button(self.frame_config, text="Actualizar Porcentajes", command=self._actualizar_porcentajes_gui)
+        self.btn_actualizar_porcentajes = tk.Button(self.frame_config, text="Actualizar Porcentajes de Recargo", command=self._actualizar_porcentajes_gui)
         self.btn_actualizar_porcentajes.pack(pady=10)
 
 
     def _crear_empleado(self):
         nombre = self.entry_nombre_empleado.get().strip()
-        salario_str = self.entry_salario_empleado.get().strip()
         standard_daily_hours_str = self.entry_standard_daily_hours.get().strip()
 
-        if not nombre or not salario_str or not standard_daily_hours_str:
-            messagebox.showerror("Error", "Todos los campos del empleado son obligatorios.")
+        if not nombre or not standard_daily_hours_str:
+            messagebox.showerror("Error", "El nombre y las horas diarias estándar del empleado son obligatorios.")
             return
 
         try:
-            salario = float(salario_str)
-            if salario <= 0:
-                raise ValueError("El salario debe ser un número positivo.")
             standard_daily_hours = int(standard_daily_hours_str)
             if standard_daily_hours <= 0:
                 raise ValueError("Las horas diarias estándar deben ser un número entero positivo.")
         except ValueError as e:
-            messagebox.showerror("Error", f"Datos inválidos: {e}\nPor favor, ingrese números válidos.")
+            messagebox.showerror("Error", f"Horas diarias estándar inválidas: {e}\nPor favor, ingrese un número entero positivo.")
             return
 
         if nombre in self.empleados:
             messagebox.showwarning("Advertencia", f"El empleado '{nombre}' ya existe.")
             return
 
-        nuevo_empleado = Empleado(nombre, salario, standard_daily_hours)
+        nuevo_empleado = Empleado(nombre, standard_daily_hours) # Ya no necesita valor_hora_ordinaria aquí
         self.empleados[nombre] = nuevo_empleado
         messagebox.showinfo("Éxito", f"Empleado '{nombre}' creado con éxito (Horas diarias estándar: {standard_daily_hours}h).")
         
         self.entry_nombre_empleado.delete(0, tk.END)
-        self.entry_salario_empleado.delete(0, tk.END)
         self.entry_standard_daily_hours.delete(0, tk.END)
         self.entry_standard_daily_hours.insert(0, "8") # Restablecer valor por defecto
-        self._actualizar_todas_las_listas_empleados() # Actualizar todas las listas y comboboxes
+        self._actualizar_todas_las_listas_empleados() # Actualizar todos los combobox y listbox
 
 
     def _actualizar_lista_empleados(self):
@@ -362,7 +527,6 @@ class RecargosApp:
         nombres_empleados = sorted(list(self.empleados.keys()))
         self.empleados_combobox['values'] = nombres_empleados
         if nombres_empleados:
-            # Intentar mantener la selección si es posible, o seleccionar el primero
             current_selection = self.empleados_combobox.get()
             if current_selection not in nombres_empleados:
                 self.empleados_combobox.set(nombres_empleados[0])
@@ -373,7 +537,7 @@ class RecargosApp:
                 if current_report_selection not in nombres_empleados:
                     self.reporte_empleado_combobox.set(nombres_empleados[0])
         else:
-            self.empleados_combobox.set("") # Limpiar si no hay empleados
+            self.empleados_combobox.set("") 
             if hasattr(self, 'reporte_empleado_combobox'):
                 self.reporte_empleado_combobox.set("")
 
@@ -469,12 +633,18 @@ class RecargosApp:
         selected_tab = self.notebook.tab(self.notebook.select(), "text")
         if selected_tab == "Registro de Jornadas" or selected_tab == "Reportes":
             self._actualizar_lista_empleados()
-        elif selected_tab == "Gestión de Empleados": # Nueva condición para la pestaña de gestión
+        elif selected_tab == "Gestión de Empleados": 
             self._actualizar_lista_gestion_empleados()
-            self._limpiar_campos_edicion_empleado() # Limpiar campos al entrar a la pestaña
+            self._limpiar_campos_edicion_empleado() 
+            self._actualizar_lista_jornadas_empleado_seleccionado(None) 
+            self._limpiar_campos_edicion_jornada() 
         elif selected_tab == "Gestión de Festivos":
             self._actualizar_lista_festivos()
         elif selected_tab == "Configuración":
+            # Actualizar el campo de Valor Hora Ordinaria Global al entrar a la pestaña
+            self.entry_valor_hora_ordinaria_global.delete(0, tk.END)
+            self.entry_valor_hora_ordinaria_global.insert(0, str(self.calculadora.valor_hora_ordinaria_global))
+
             self.entry_dominical_config.delete(0, tk.END)
             self.entry_dominical_config.insert(0, str(self.calculadora.PORCENTAJE_RECARGO_DOMINICAL_FESTIVO * 100))
             self.entry_extra_diurna_config.delete(0, tk.END)
@@ -518,6 +688,20 @@ class RecargosApp:
         for fecha in sorted(self.calculadora.dias_festivos):
             self.festivos_listbox.insert(tk.END, fecha.strftime('%Y-%m-%d'))
 
+    def _actualizar_valor_hora_ordinaria_global_gui(self):
+        """Actualiza el valor global de la hora ordinaria desde la GUI."""
+        nuevo_valor_str = self.entry_valor_hora_ordinaria_global.get().strip()
+        try:
+            nuevo_valor = float(nuevo_valor_str)
+            if nuevo_valor <= 0:
+                raise ValueError("El valor debe ser un número positivo.")
+            
+            mensaje = self.calculadora.actualizar_valor_hora_ordinaria_global(nuevo_valor)
+            messagebox.showinfo("Configuración", mensaje)
+            self._on_tab_change(None) # Refrescar la pestaña de configuración
+        except ValueError as e:
+            messagebox.showerror("Error", f"Valor de hora ordinaria inválido: {e}\nIngrese un número positivo.")
+
 
     def _actualizar_porcentajes_gui(self):
         nuevo_dom = self.entry_dominical_config.get().strip()
@@ -554,9 +738,10 @@ class RecargosApp:
         Este método está comentado por defecto. Descoméntalo y úsalo si necesitas
         precargar datos de ejemplo al iniciar la aplicación para pruebas.
         """
-        empleado1 = Empleado("Ana Pérez", 1_300_000, 8, "indefinido") # 8 horas estándar
-        empleado2 = Empleado("Juan García", 2_500_000, 8, "término fijo") # 8 horas estándar
-        empleado3 = Empleado("Pedro López", 1_000_000, 6, "obra o labor") # 6 horas estándar
+        # El valor de la hora ordinaria ahora es global, no se pasa al empleado
+        empleado1 = Empleado("Ana Pérez", 8, "indefinido") # 8 horas estándar
+        empleado2 = Empleado("Juan García", 8, "término fijo") # 8 horas estándar
+        empleado3 = Empleado("Pedro López", 6, "obra o labor") # 6 horas estándar
 
         self.empleados["Ana Pérez"] = empleado1
         self.empleados["Juan García"] = empleado2
@@ -575,7 +760,8 @@ class RecargosApp:
         empleado2.registrar_jornada(datetime.date(2025, 7, 16), datetime.time(22, 0), datetime.time(6, 0)) 
 
 
-        self._actualizar_todas_las_listas_empleados() # Actualizar todas las listas y comboboxes
+        self._actualizar_todas_las_listas_empleados() 
+        self._actualizar_lista_festivos()
 
 if __name__ == "__main__":
     root = tk.Tk()
