@@ -21,6 +21,11 @@ class RecargosApp:
         # Variable para almacenar el índice de la jornada seleccionada para edición
         self._selected_jornada_index_for_edit = None
 
+        # Variable para el checkbox de día compensatorio
+        self.es_dia_compensatorio = tk.BooleanVar(value=False)
+        self.es_dia_compensatorio.trace_add("write", self._on_dia_compensatorio_toggle)
+
+
         self._crear_widgets_iniciales()
         
         # Configurar el protocolo de cierre de ventana para guardar datos
@@ -67,9 +72,22 @@ class RecargosApp:
         self.notebook.add(self.frame_config, text="Configuración")
         self._setup_config_tab()
 
+        # Pestaña 6: Acumulados de Horas (Nueva)
+        self.frame_acumulados = ttk.Frame(self.notebook)
+        self.notebook.add(self.frame_acumulados, text="Acumulados de Horas")
+        self._setup_acumulados_tab()
+
+        # NUEVA PESTAÑA: Recargos Detallados
+        self.frame_recargos_detallados = ttk.Frame(self.notebook)
+        self.notebook.add(self.frame_recargos_detallados, text="Recargos Detallados")
+        self._setup_recargos_detallados_tab()
+
+
         # Asegurarse de que todos los combobox y listas existan antes de intentar actualizarlos
         self._actualizar_lista_empleados()
         self._actualizar_lista_gestion_empleados() # Actualizar la nueva lista al inicio
+        
+        self.notebook.bind("<<NotebookTabChanged>>", self._on_tab_change)
 
 
     def _setup_jornadas_tab(self):
@@ -105,6 +123,10 @@ class RecargosApp:
         # CORRECCIÓN: Usar lambda para pasar el argumento target_entry
         self.btn_seleccionar_fecha = tk.Button(self.frame_jornadas, text="Seleccionar", command=lambda: self._open_calendar_dialog(self.entry_fecha_jornada))
         self.btn_seleccionar_fecha.grid(row=7, column=2, padx=5, pady=5) # Botón para abrir el calendario
+
+        # Nuevo Checkbutton para Día Compensatorio
+        self.check_dia_compensatorio = tk.Checkbutton(self.frame_jornadas, text="Día Compensatorio (8h Ordinarias)", variable=self.es_dia_compensatorio)
+        self.check_dia_compensatorio.grid(row=11, column=0, columnspan=3, pady=5, sticky="w") # Ajustar fila
 
         tk.Label(self.frame_jornadas, text="Hora Entrada:").grid(row=8, column=0, padx=5, pady=5, sticky="w") 
         self.combo_hora_entrada = ttk.Combobox(self.frame_jornadas, values=self.time_options, state="readonly")
@@ -458,8 +480,6 @@ class RecargosApp:
         self.report_area = scrolledtext.ScrolledText(self.frame_reportes, width=80, height=20, wrap=tk.WORD)
         self.report_area.pack(pady=10, padx=10, expand=True, fill="both")
 
-        self.notebook.bind("<<NotebookTabChanged>>", self._on_tab_change)
-
     def _setup_festivos_tab(self):
         tk.Label(self.frame_festivos, text="--- Gestión de Días Festivos ---", font=("Arial", 10, "bold")).pack(pady=10)
 
@@ -486,54 +506,451 @@ class RecargosApp:
     def _setup_config_tab(self):
         tk.Label(self.frame_config, text="--- Configuración de Porcentajes ---", font=("Arial", 10, "bold")).pack(pady=10)
 
-        tk.Label(self.frame_config, text=f"Hora Extra Diurna (Total:):").pack(pady=2)
+        # Horas Extras (se muestran como porcentaje TOTAL)
+        tk.Label(self.frame_config, text=f"Hora Extra Diurna (% Total):").pack(pady=2)
         self.entry_extra_diurna_config = tk.Entry(self.frame_config)
-        self.entry_extra_diurna_config.insert(0, str(self.calculadora.MULTIPLIER_HORA_EXTRA_DIURNA * 100))
+        self.entry_extra_diurna_config.insert(0, str(round(self.calculadora.MULTIPLIER_HORA_EXTRA_DIURNA * 100)))
         self.entry_extra_diurna_config.pack(pady=2)
 
-        tk.Label(self.frame_config, text=f"Horas Extras Nocturnas (Total:):").pack(pady=2)
+        tk.Label(self.frame_config, text=f"Horas Extras Nocturnas (% Total):").pack(pady=2)
         self.entry_extra_nocturna_config = tk.Entry(self.frame_config)
-        self.entry_extra_nocturna_config.insert(0, str(self.calculadora.MULTIPLIER_HORA_EXTRA_NOCTURNA * 100))
+        self.entry_extra_nocturna_config.insert(0, str(round(self.calculadora.MULTIPLIER_HORA_EXTRA_NOCTURNA * 100)))
         self.entry_extra_nocturna_config.pack(pady=2)
 
-        tk.Label(self.frame_config, text=f"Horas Extras Diurnas Dom./Fest. (Total:):").pack(pady=2)
+        tk.Label(self.frame_config, text=f"Horas Extras Diurnas Dom./Fest. (% Total):").pack(pady=2)
         self.entry_extra_diurna_domingofestivo_config = tk.Entry(self.frame_config)
-        self.entry_extra_diurna_domingofestivo_config.insert(0, str(self.calculadora.MULTIPLIER_EXTRA_DIURNA_DOMINGOFESTIVO * 100))
+        self.entry_extra_diurna_domingofestivo_config.insert(0, str(round(self.calculadora.MULTIPLIER_EXTRA_DIURNA_DOMINGOFESTIVO * 100)))
         self.entry_extra_diurna_domingofestivo_config.pack(pady=2)
 
-        tk.Label(self.frame_config, text=f"Horas Extras Noctur Dom o Festivas (Total:):").pack(pady=2)
+        tk.Label(self.frame_config, text=f"Horas Extras Noctur Dom o Festivas (% Total):").pack(pady=2)
         self.entry_extra_nocturna_domingofestivo_config = tk.Entry(self.frame_config)
-        self.entry_extra_nocturna_domingofestivo_config.insert(0, str(self.calculadora.MULTIPLIER_EXTRA_NOCTURNA_DOMINGOFESTIVO * 100))
+        self.entry_extra_nocturna_domingofestivo_config.insert(0, str(round(self.calculadora.MULTIPLIER_EXTRA_NOCTURNA_DOMINGOFESTIVO * 100)))
         self.entry_extra_nocturna_domingofestivo_config.pack(pady=2)
 
-        tk.Label(self.frame_config, text=f"Recargo Nocturno (Adicional:):").pack(pady=2)
+        # Recargos (se muestran como porcentaje ADICIONAL)
+        tk.Label(self.frame_config, text=f"Recargo Nocturno (% Adicional):").pack(pady=2)
         self.entry_ordinaria_nocturna_config = tk.Entry(self.frame_config)
-        self.entry_ordinaria_nocturna_config.insert(0, str(round((self.calculadora.MULTIPLIER_HORA_ORDINARIA_NOCTURNA - 1.00) * 100)))
+        self.entry_ordinaria_nocturna_config.insert(0, str(round(self.calculadora.ADDITIONAL_PERCENTAGE_DECIMAL_HORA_ORDINARIA_NOCTURNA * 100)))
         self.entry_ordinaria_nocturna_config.pack(pady=2)
 
-        tk.Label(self.frame_config, text=f"Recargo Dominical o Festivo (Adicional:):").pack(pady=2)
+        tk.Label(self.frame_config, text=f"Recargo Dominical o Festivo Diurno Base (% Adicional):").pack(pady=2) 
         self.entry_domingofestivo_base_config = tk.Entry(self.frame_config)
-        self.entry_domingofestivo_base_config.insert(0, str(round((self.calculadora.MULTIPLIER_RECARGO_DOMINGOFESTIVO_DIURNO_BASE - 1.00) * 100)))
+        self.entry_domingofestivo_base_config.insert(0, str(round(self.calculadora.ADDITIONAL_PERCENTAGE_DECIMAL_RECARGO_DOMINGOFESTIVO_DIURNO_BASE * 100)))
         self.entry_domingofestivo_base_config.pack(pady=2)
 
-        tk.Label(self.frame_config, text=f"Recargo Nocturno Dominical o festivo (Adicional:):").pack(pady=2)
+        tk.Label(self.frame_config, text=f"Recargo Nocturno Dominical o festivo (% Adicional):").pack(pady=2)
         self.entry_ordinaria_nocturna_domingofestivo_config = tk.Entry(self.frame_config)
-        self.entry_ordinaria_nocturna_domingofestivo_config.insert(0, str(round((self.calculadora.MULTIPLIER_ORDINARIA_NOCTURNA_DOMINGOFESTIVO - 1.00) * 100)))
+        self.entry_ordinaria_nocturna_domingofestivo_config.insert(0, str(round(self.calculadora.ADDITIONAL_PERCENTAGE_DECIMAL_ORDINARIA_NOCTURNA_DOMINGOFESTIVO * 100)))
         self.entry_ordinaria_nocturna_domingofestivo_config.pack(pady=2)
 
-        # CAMBIO: Nuevas etiquetas para los porcentajes de "Recargo Dominical o Festivo diurno no compensado"
-        tk.Label(self.frame_config, text=f"Recargo Dom./Fest. Diurno No Compensado (<22h) (Adicional:):").pack(pady=2)
-        self.entry_domingofestivo_diurno_larga_jornada_config = tk.Entry(self.frame_config)
-        self.entry_domingofestivo_diurno_larga_jornada_config.insert(0, str(round((self.calculadora.MULTIPLIER_RECARGO_DOMINGOFESTIVO_DIURNO_LARGA_JORNADA - 1.00) * 100)))
+        tk.Label(self.frame_config, text=f"Recargo Dom./Fest. Diurno Jornada Larga (% Adicional):").pack(pady=2) 
+        self.entry_domingofestivo_diurno_larga_jornada_config = tk.Entry(self.frame_config) # Corrected name
+        self.entry_domingofestivo_diurno_larga_jornada_config.insert(0, str(round(self.calculadora.ADDITIONAL_PERCENTAGE_DECIMAL_RECARGO_DOMINGOFESTIVO_DIURNO_LARGA_JORNADA * 100)))
         self.entry_domingofestivo_diurno_larga_jornada_config.pack(pady=2)
 
-        tk.Label(self.frame_config, text=f"Recargo Dom./Fest. Nocturno No Compensado (>=23h) (Adicional:):").pack(pady=2)
+        tk.Label(self.frame_config, text=f"Recargo Dom./Fest. Nocturno Jornada Larga (% Adicional):").pack(pady=2) 
         self.entry_domingofestivo_nocturno_larga_jornada_config = tk.Entry(self.frame_config)
-        self.entry_domingofestivo_nocturno_larga_jornada_config.insert(0, str(round((self.calculadora.MULTIPLIER_RECARGO_DOMINGOFESTIVO_NOCTURNO_LARGA_JORNADA - 1.00) * 100)))
+        self.entry_domingofestivo_nocturno_larga_jornada_config.insert(0, str(round(self.calculadora.ADDITIONAL_PERCENTAGE_DECIMAL_RECARGO_DOMINGOFESTIVO_NOCTURNO_LARGA_JORNADA * 100)))
         self.entry_domingofestivo_nocturno_larga_jornada_config.pack(pady=2)
 
         self.btn_actualizar_porcentajes = tk.Button(self.frame_config, text="Actualizar Porcentajes de Recargo", command=self._actualizar_porcentajes_gui)
         self.btn_actualizar_porcentajes.pack(pady=10)
+
+    def _setup_acumulados_tab(self):
+        tk.Label(self.frame_acumulados, text="--- Acumulados de Horas por Categoría ---", font=("Arial", 10, "bold")).pack(pady=10)
+
+        tk.Label(self.frame_acumulados, text="Seleccionar Empleado:").pack(pady=5)
+        self.acumulados_empleado_combobox = ttk.Combobox(self.frame_acumulados, state="readonly")
+        self.acumulados_empleado_combobox.pack(pady=5)
+
+        # Nuevos campos para selección de período
+        periodo_frame = ttk.LabelFrame(self.frame_acumulados, text="Filtrar por Período (Opcional)")
+        periodo_frame.pack(pady=5, padx=10, fill="x", expand=False)
+
+        tk.Label(periodo_frame, text="Fecha Inicio (YYYY-MM-DD):").grid(row=0, column=0, padx=5, pady=2, sticky="w")
+        self.entry_acumulados_periodo_inicio = tk.Entry(periodo_frame, state="readonly")
+        self.entry_acumulados_periodo_inicio.grid(row=0, column=1, padx=5, pady=2, sticky="ew")
+        self.btn_seleccionar_fecha_acum_inicio = tk.Button(periodo_frame, text="Seleccionar", command=lambda: self._open_calendar_dialog(self.entry_acumulados_periodo_inicio))
+        self.btn_seleccionar_fecha_acum_inicio.grid(row=0, column=2, padx=5, pady=2)
+
+        tk.Label(periodo_frame, text="Fecha Fin (YYYY-MM-DD):").grid(row=1, column=0, padx=5, pady=2, sticky="w")
+        self.entry_acumulados_periodo_fin = tk.Entry(periodo_frame, state="readonly")
+        self.entry_acumulados_periodo_fin.grid(row=1, column=1, padx=5, pady=2, sticky="ew")
+        self.btn_seleccionar_fecha_acum_fin = tk.Button(periodo_frame, text="Seleccionar", command=lambda: self._open_calendar_dialog(self.entry_acumulados_periodo_fin))
+        self.btn_seleccionar_fecha_acum_fin.grid(row=1, column=2, padx=5, pady=2)
+
+        periodo_frame.columnconfigure(1, weight=1) # Permite que el campo de entrada se expanda
+
+        self.btn_mostrar_acumulados = tk.Button(self.frame_acumulados, text="Mostrar Acumulados", command=self._mostrar_acumulados_empleado)
+        self.btn_mostrar_acumulados.pack(pady=5)
+
+        self.acumulados_report_area = scrolledtext.ScrolledText(self.frame_acumulados, width=80, height=20, wrap=tk.WORD)
+        self.acumulados_report_area.pack(pady=10, padx=10, expand=True, fill="both")
+
+    def _setup_recargos_detallados_tab(self):
+        tk.Label(self.frame_recargos_detallados, text="--- Recargos Detallados por Empleado ---", font=("Arial", 10, "bold")).pack(pady=10)
+
+        tk.Label(self.frame_recargos_detallados, text="Seleccionar Empleado:").pack(pady=5)
+        self.detallados_empleado_combobox = ttk.Combobox(self.frame_recargos_detallados, state="readonly")
+        self.detallados_empleado_combobox.pack(pady=5)
+
+        # Campos para selección de período (opcional)
+        periodo_detallado_frame = ttk.LabelFrame(self.frame_recargos_detallados, text="Filtrar por Período (Opcional)")
+        periodo_detallado_frame.pack(pady=5, padx=10, fill="x", expand=False)
+
+        tk.Label(periodo_detallado_frame, text="Fecha Inicio (YYYY-MM-DD):").grid(row=0, column=0, padx=5, pady=2, sticky="w")
+        self.entry_detallados_periodo_inicio = tk.Entry(periodo_detallado_frame, state="readonly")
+        self.entry_detallados_periodo_inicio.grid(row=0, column=1, padx=5, pady=2, sticky="ew")
+        self.btn_seleccionar_fecha_detallados_inicio = tk.Button(periodo_detallado_frame, text="Seleccionar", command=lambda: self._open_calendar_dialog(self.entry_detallados_periodo_inicio))
+        self.btn_seleccionar_fecha_detallados_inicio.grid(row=0, column=2, padx=5, pady=2)
+
+        tk.Label(periodo_detallado_frame, text="Fecha Fin (YYYY-MM-DD):").grid(row=1, column=0, padx=5, pady=2, sticky="w")
+        self.entry_detallados_periodo_fin = tk.Entry(periodo_detallado_frame, state="readonly")
+        self.entry_detallados_periodo_fin.grid(row=1, column=1, padx=5, pady=2, sticky="ew")
+        self.btn_seleccionar_fecha_detallados_fin = tk.Button(periodo_detallado_frame, text="Seleccionar", command=lambda: self._open_calendar_dialog(self.entry_detallados_periodo_fin))
+        self.btn_seleccionar_fecha_detallados_fin.grid(row=1, column=2, padx=5, pady=2)
+
+        periodo_detallado_frame.columnconfigure(1, weight=1)
+
+        self.btn_generar_recargos_detallados = tk.Button(self.frame_recargos_detallados, text="Generar Reporte Detallado", command=self._generar_recargos_detallados_gui)
+        self.btn_generar_recargos_detallados.pack(pady=5)
+
+        self.detallados_report_area = scrolledtext.ScrolledText(self.frame_recargos_detallados, width=80, height=20, wrap=tk.WORD)
+        self.detallados_report_area.pack(pady=10, padx=10, expand=True, fill="both")
+
+
+    def _mostrar_acumulados_empleado(self):
+        nombre_empleado = self.acumulados_empleado_combobox.get()
+        if not nombre_empleado:
+            messagebox.showerror("Error", "Seleccione un empleado para ver los acumulados.")
+            return
+
+        original_empleado = self.empleados.get(nombre_empleado)
+        if not original_empleado:
+            messagebox.showerror("Error", "Empleado no encontrado.")
+            return
+
+        fecha_inicio_str = self.entry_acumulados_periodo_inicio.get().strip()
+        fecha_fin_str = self.entry_acumulados_periodo_fin.get().strip()
+        
+        periodo_inicio = None
+        periodo_fin = None
+        report_period_info = ""
+
+        if fecha_inicio_str:
+            try:
+                periodo_inicio = datetime.datetime.strptime(fecha_inicio_str, '%Y-%m-%d').date()
+            except ValueError:
+                messagebox.showerror("Error", "Formato de fecha de inicio inválido (YYYY-MM-DD).")
+                return
+        
+        if fecha_fin_str:
+            try:
+                periodo_fin = datetime.datetime.strptime(fecha_fin_str, '%Y-%m-%d').date()
+            except ValueError:
+                messagebox.showerror("Error", "Formato de fecha de fin inválido (YYYY-MM-DD).")
+                return
+        
+        if periodo_inicio and periodo_fin and periodo_inicio > periodo_fin:
+            messagebox.showerror("Error", "La fecha de inicio no puede ser posterior a la fecha de fin.")
+            return
+        
+        jornadas_to_process = []
+        if periodo_inicio and periodo_fin:
+            # Filtrar jornadas por el período seleccionado
+            for jornada in original_empleado.jornadas_registradas:
+                if periodo_inicio <= jornada["fecha"] <= periodo_fin:
+                    jornadas_to_process.append(jornada)
+            report_period_info = f"Período: {periodo_inicio.strftime('%Y-%m-%d')} a {periodo_fin.strftime('%Y-%m-%d')}"
+        elif periodo_inicio or periodo_fin: # Si solo se ingresa una fecha, es un error de uso
+             messagebox.showwarning("Advertencia", "Por favor, ingrese AMBAS fechas de inicio y fin para filtrar por período, o deje AMBAS vacías para el acumulado total.")
+             return
+        else:
+            # Si no se selecciona período, procesar todas las jornadas registradas
+            jornadas_to_process = original_empleado.jornadas_registradas
+            report_period_info = "Todas las jornadas registradas"
+
+
+        # Crear un objeto Empleado temporal con las jornadas filtradas para usar la lógica existente
+        # Esto evita modificar la lista original de jornadas del empleado y permite reutilizar CalculadoraRecargos
+        temp_empleado = Empleado(original_empleado.nombre, original_empleado.salario_mensual, original_empleado.standard_daily_hours, original_empleado.tipo_contrato)
+        temp_empleado.jornadas_registradas = jornadas_to_process
+
+        # Obtener los acumulados usando la lógica existente
+        acum_horas, _, _ = self.calculadora.get_accumulated_hours_and_surcharges(temp_empleado)
+
+        reporte_str = f"--- Acumulados de Horas para {original_empleado.nombre} ({report_period_info}) ---\n"
+        reporte_str += f"Horas Diarias Estándar: {original_empleado.standard_daily_hours} horas\n\n"
+
+        display_names = {
+            "horas_ordinarias_diurnas": "Horas Ordinarias Diurnas",
+            "horas_ordinarias_nocturnas": "Horas Ordinarias Nocturnas",
+            "horas_extras_diurnas": "Horas Extras Diurnas",
+            "horas_extras_nocturnas": "Horas Extras Nocturnas",
+            "horas_ordinarias_diurnas_domingo": "Horas Ordinarias Diurnas Domingo",
+            "horas_ordinarias_nocturnas_domingo": "Horas Ordinarias Nocturnas Domingo",
+            "horas_extras_diurnas_domingo": "Horas Extras Diurnas Domingo",
+            "horas_extras_nocturnas_domingo": "Horas Extras Nocturnas Domingo",
+            "horas_ordinarias_diurnas_festivo": "Horas Ordinarias Diurnas Festivo",
+            "horas_ordinarias_nocturnas_festivo": "Horas Ordinarias Nocturnas Festivo",
+            "horas_extras_diurnas_festivo": "Horas Extras Diurnas Festivo",
+            "horas_extras_nocturnas_festivo": "Horas Extras Nocturnas Festivo",
+        }
+
+        # Sección para horas y recargos regulares
+        reporte_str += "--- Horas Regulares ---\n"
+        regular_keys = [
+            "horas_ordinarias_diurnas",
+            "horas_ordinarias_nocturnas",
+            "horas_extras_diurnas",
+            "horas_extras_nocturnas",
+        ]
+        total_horas_regulares_con_recargo = 0.0
+        for key in regular_keys:
+            hours = acum_horas.get(key, 0.0)
+            if hours > 0:
+                reporte_str += f"- {display_names[key]}: {hours:.2f}h\n"
+                if key != "horas_ordinarias_diurnas":
+                    total_horas_regulares_con_recargo += hours
+        
+        # Sección para horas de Domingo (Separadas)
+        reporte_str += "\n--- Horas (Domingos) ---\n"
+        domingo_keys = [
+            "horas_ordinarias_diurnas_domingo",
+            "horas_ordinarias_nocturnas_domingo",
+            "horas_extras_diurnas_domingo",
+            "horas_extras_nocturnas_domingo",
+        ]
+        total_horas_domingo_con_recargo = 0.0
+        for key in domingo_keys:
+            hours = acum_horas.get(key, 0.0)
+            if hours > 0:
+                reporte_str += f"- {display_names[key]}: {hours:.2f}h\n"
+                total_horas_domingo_con_recargo += hours
+
+        # Sección para horas de Festivo (Separadas)
+        reporte_str += "\n--- Horas (Festivos) ---\n"
+        festivo_keys = [
+            "horas_ordinarias_diurnas_festivo",
+            "horas_ordinarias_nocturnas_festivo",
+            "horas_extras_diurnas_festivo",
+            "horas_extras_nocturnas_festivo",
+        ]
+        total_horas_festivo_con_recargo = 0.0
+        for key in festivo_keys:
+            hours = acum_horas.get(key, 0.0)
+            if hours > 0:
+                reporte_str += f"- {display_names[key]}: {hours:.2f}h\n"
+                total_horas_festivo_con_recargo += hours
+
+        # NUEVA SECCIÓN: Horas Acumuladas Domingos y Festivos (Combinadas)
+        reporte_str += "\n--- Horas Acumuladas Domingos y Festivos (Combinadas) ---\n"
+        
+        total_ord_diurnas_df = acum_horas.get("horas_ordinarias_diurnas_domingo", 0.0) + acum_horas.get("horas_ordinarias_diurnas_festivo", 0.0)
+        if total_ord_diurnas_df > 0:
+            reporte_str += f"- Horas Ordinarias Diurnas D/F: {total_ord_diurnas_df:.2f}h\n"
+
+        total_ord_nocturnas_df = acum_horas.get("horas_ordinarias_nocturnas_domingo", 0.0) + acum_horas.get("horas_ordinarias_nocturnas_festivo", 0.0)
+        if total_ord_nocturnas_df > 0:
+            reporte_str += f"- Horas Ordinarias Nocturnas D/F: {total_ord_nocturnas_df:.2f}h\n"
+
+        total_ext_diurnas_df = acum_horas.get("horas_extras_diurnas_domingo", 0.0) + acum_horas.get("horas_extras_diurnas_festivo", 0.0)
+        if total_ext_diurnas_df > 0:
+            reporte_str += f"- Horas Extras Diurnas D/F: {total_ext_diurnas_df:.2f}h\n"
+
+        total_ext_nocturnas_df = acum_horas.get("horas_extras_nocturnas_domingo", 0.0) + acum_horas.get("horas_extras_nocturnas_festivo", 0.0)
+        if total_ext_nocturnas_df > 0:
+            reporte_str += f"- Horas Extras Nocturnas D/F: {total_ext_nocturnas_df:.2f}h\n"
+
+        # Calcular el total general de horas con recargo
+        total_general_horas_con_recargo = 0.0
+        for key, hours in acum_horas.items():
+            if key != "horas_ordinarias_diurnas": # Excluir horas ordinarias diurnas que no tienen recargo adicional
+                total_general_horas_con_recargo += hours
+
+        # Calcular el total general de todas las horas (recargo + ordinarias diurnas)
+        total_todas_las_horas_acumuladas = sum(acum_horas.values())
+
+        reporte_str += f"\nTotal de Horas Acumuladas con Recargo (Todas las Categorías): {total_general_horas_con_recargo:.2f}h\n"
+        reporte_str += f"Total de Todas las Horas Acumuladas (Recargo + Ordinarias): {total_todas_las_horas_acumuladas:.2f}h\n"
+        reporte_str += "-----------------------------------------------------\n"
+
+        self.acumulados_report_area.delete(1.0, tk.END)
+        self.acumulados_report_area.insert(tk.END, reporte_str)
+
+    def _generar_recargos_detallados_gui(self):
+        nombre_empleado = self.detallados_empleado_combobox.get()
+        if not nombre_empleado:
+            messagebox.showerror("Error", "Seleccione un empleado para generar el reporte detallado.")
+            return
+
+        original_empleado = self.empleados.get(nombre_empleado)
+        if not original_empleado:
+            messagebox.showerror("Error", "Empleado no encontrado.")
+            return
+
+        fecha_inicio_str = self.entry_detallados_periodo_inicio.get().strip()
+        fecha_fin_str = self.entry_detallados_periodo_fin.get().strip()
+        
+        periodo_inicio = None
+        periodo_fin = None
+        report_period_info = ""
+
+        if fecha_inicio_str:
+            try:
+                periodo_inicio = datetime.datetime.strptime(fecha_inicio_str, '%Y-%m-%d').date()
+            except ValueError:
+                messagebox.showerror("Error", "Formato de fecha de inicio inválido (YYYY-MM-DD).")
+                return
+        
+        if fecha_fin_str:
+            try:
+                periodo_fin = datetime.datetime.strptime(fecha_fin_str, '%Y-%m-%d').date()
+            except ValueError:
+                messagebox.showerror("Error", "Formato de fecha de fin inválido (YYYY-MM-DD).")
+                return
+        
+        if periodo_inicio and periodo_fin and periodo_inicio > periodo_fin:
+            messagebox.showerror("Error", "La fecha de inicio no puede ser posterior a la fecha de fin.")
+            return
+        
+        jornadas_to_process = []
+        if periodo_inicio and periodo_fin:
+            for jornada in original_empleado.jornadas_registradas:
+                if periodo_inicio <= jornada["fecha"] <= periodo_fin:
+                    jornadas_to_process.append(jornada)
+            report_period_info = f"Período: {periodo_inicio.strftime('%Y-%m-%d')} a {periodo_fin.strftime('%Y-%m-%d')}"
+        elif periodo_inicio or periodo_fin:
+             messagebox.showwarning("Advertencia", "Por favor, ingrese AMBAS fechas de inicio y fin para filtrar por período, o deje AMBAS vacías para el acumulado total.")
+             return
+        else:
+            jornadas_to_process = original_empleado.jornadas_registradas
+            report_period_info = "Todas las jornadas registradas"
+
+        temp_empleado = Empleado(original_empleado.nombre, original_empleado.salario_mensual, original_empleado.standard_daily_hours, original_empleado.tipo_contrato)
+        temp_empleado.jornadas_registradas = jornadas_to_process
+
+        acum_horas, acum_surcharge_values, total_gross_value = self.calculadora.get_accumulated_hours_and_surcharges(temp_empleado)
+
+        reporte_str = f"--- Recargos Detallados para {original_empleado.nombre} ({report_period_info}) ---\n"
+        reporte_str += f"Salario Mensual: ${original_empleado.salario_mensual:,.2f}\n"
+        reporte_str += f"Horas Diarias Estándar: {original_empleado.standard_daily_hours} horas\n\n"
+        reporte_str += "Detalle de Horas y Recargos:\n"
+
+        display_names = {
+            "horas_ordinarias_diurnas": "Horas Ordinarias Diurnas",
+            "horas_ordinarias_nocturnas": "Horas Ordinarias Nocturnas",
+            "horas_extras_diurnas": "Horas Extras Diurnas",
+            "horas_extras_nocturnas": "Horas Extras Nocturnas",
+            "horas_ordinarias_diurnas_domingo": "Horas Ordinarias Diurnas Domingo",
+            "horas_ordinarias_nocturnas_domingo": "Horas Ordinarias Nocturnas Domingo",
+            "horas_extras_diurnas_domingo": "Horas Extras Diurnas Domingo",
+            "horas_extras_nocturnas_domingo": "Horas Extras Nocturnas Domingo",
+            "horas_ordinarias_diurnas_festivo": "Horas Ordinarias Diurnas Festivo",
+            "horas_ordinarias_nocturnas_festivo": "Horas Ordinarias Nocturnas Festivo",
+            "horas_extras_diurnas_festivo": "Horas Extras Diurnas Festivo",
+            "horas_extras_nocturnas_festivo": "Horas Extras Nocturnas Festivo",
+        }
+
+        # Ordenar las claves para una presentación consistente
+        ordered_keys = [
+            "horas_ordinarias_diurnas",
+            "horas_ordinarias_nocturnas",
+            "horas_extras_diurnas",
+            "horas_extras_nocturnas",
+        ]
+
+        # Sección para horas regulares
+        reporte_str += "--- Horas Regulares ---\n"
+        for key in ordered_keys:
+            hours = acum_horas.get(key, 0.0)
+            if hours > 0:
+                if key == "horas_ordinarias_diurnas":
+                    # Horas Ordinarias Diurnas no tienen recargo adicional, solo valor base
+                    valor_base = hours * original_empleado.obtener_valor_hora_ordinaria()
+                    reporte_str += f"- {display_names[key]}: {hours:.2f}h (Valor Base: ${valor_base:,.2f})\n"
+                else:
+                    porcentaje = self.calculadora._get_percentage_for_hour_type(key)
+                    surcharge_value = acum_surcharge_values.get(key, 0.0)
+                    # El valor total es el valor base de esas horas más el recargo
+                    valor_total_tipo_hora = (hours * original_empleado.obtener_valor_hora_ordinaria()) + surcharge_value
+                    reporte_str += f"- {display_names[key]} ({porcentaje}%): {hours:.2f}h (Recargo: ${surcharge_value:,.2f} | Total: ${valor_total_tipo_hora:,.2f})\n"
+        
+        # Sección para horas de Domingo (Separadas)
+        reporte_str += "\n--- Horas (Domingos) ---\n"
+        domingo_keys = [
+            "horas_ordinarias_diurnas_domingo",
+            "horas_ordinarias_nocturnas_domingo",
+            "horas_extras_diurnas_domingo",
+            "horas_extras_nocturnas_domingo",
+        ]
+        for key in domingo_keys:
+            hours = acum_horas.get(key, 0.0)
+            if hours > 0:
+                porcentaje = self.calculadora._get_percentage_for_hour_type(key)
+                surcharge_value = acum_surcharge_values.get(key, 0.0)
+                valor_total_tipo_hora = (hours * original_empleado.obtener_valor_hora_ordinaria()) + surcharge_value
+                reporte_str += f"- {display_names[key]} ({porcentaje}%): {hours:.2f}h (Recargo: ${surcharge_value:,.2f} | Total: ${valor_total_tipo_hora:,.2f})\n"
+
+        # Sección para horas de Festivo (Separadas)
+        reporte_str += "\n--- Horas (Festivos) ---\n"
+        festivo_keys = [
+            "horas_ordinarias_diurnas_festivo",
+            "horas_ordinarias_nocturnas_festivo",
+            "horas_extras_diurnas_festivo",
+            "horas_extras_nocturnas_festivo",
+        ]
+        for key in festivo_keys:
+            hours = acum_horas.get(key, 0.0)
+            if hours > 0:
+                porcentaje = self.calculadora._get_percentage_for_hour_type(key)
+                surcharge_value = acum_surcharge_values.get(key, 0.0)
+                valor_total_tipo_hora = (hours * original_empleado.obtener_valor_hora_ordinaria()) + surcharge_value
+                reporte_str += f"- {display_names[key]} ({porcentaje}%): {hours:.2f}h (Recargo: ${surcharge_value:,.2f} | Total: ${valor_total_tipo_hora:,.2f})\n"
+
+        # NUEVA SECCIÓN: Horas Acumuladas Domingos y Festivos (Combinadas)
+        reporte_str += "\n--- Horas Acumuladas Domingos y Festivos (Combinadas) ---\n"
+        
+        # Horas Ordinarias Diurnas D/F Combinadas
+        total_ord_diurnas_df_hours = acum_horas.get("horas_ordinarias_diurnas_domingo", 0.0) + acum_horas.get("horas_ordinarias_diurnas_festivo", 0.0)
+        total_ord_diurnas_df_surcharge = acum_surcharge_values.get("horas_ordinarias_diurnas_domingo", 0.0) + acum_surcharge_values.get("horas_ordinarias_diurnas_festivo", 0.0)
+        # Asumimos que el porcentaje para ambas es el mismo (180%)
+        porcentaje_ord_diurnas_df = self.calculadora._get_percentage_for_hour_type("horas_ordinarias_diurnas_domingo") 
+        if total_ord_diurnas_df_hours > 0:
+            valor_total_ord_diurnas_df = (total_ord_diurnas_df_hours * original_empleado.obtener_valor_hora_ordinaria()) + total_ord_diurnas_df_surcharge
+            reporte_str += f"- Horas Ordinarias Diurnas D/F ({porcentaje_ord_diurnas_df}%): {total_ord_diurnas_df_hours:.2f}h (Recargo: ${total_ord_diurnas_df_surcharge:,.2f} | Total: ${valor_total_ord_diurnas_df:,.2f})\n"
+
+        # Horas Ordinarias Nocturnas D/F Combinadas
+        total_ord_nocturnas_df_hours = acum_horas.get("horas_ordinarias_nocturnas_domingo", 0.0) + acum_horas.get("horas_ordinarias_nocturnas_festivo", 0.0)
+        total_ord_nocturnas_df_surcharge = acum_surcharge_values.get("horas_ordinarias_nocturnas_domingo", 0.0) + acum_surcharge_values.get("horas_ordinarias_nocturnas_festivo", 0.0)
+        porcentaje_ord_nocturnas_df = self.calculadora._get_percentage_for_hour_type("horas_ordinarias_nocturnas_domingo")
+        if total_ord_nocturnas_df_hours > 0:
+            valor_total_ord_nocturnas_df = (total_ord_nocturnas_df_hours * original_empleado.obtener_valor_hora_ordinaria()) + total_ord_nocturnas_df_surcharge
+            reporte_str += f"- Horas Ordinarias Nocturnas D/F ({porcentaje_ord_nocturnas_df}%): {total_ord_nocturnas_df_hours:.2f}h (Recargo: ${total_ord_nocturnas_df_surcharge:,.2f} | Total: ${valor_total_ord_nocturnas_df:,.2f})\n"
+
+        # Horas Extras Diurnas D/F Combinadas
+        total_ext_diurnas_df_hours = acum_horas.get("horas_extras_diurnas_domingo", 0.0) + acum_horas.get("horas_extras_diurnas_festivo", 0.0)
+        total_ext_diurnas_df_surcharge = acum_surcharge_values.get("horas_extras_diurnas_domingo", 0.0) + acum_surcharge_values.get("horas_extras_diurnas_festivo", 0.0)
+        porcentaje_ext_diurnas_df = self.calculadora._get_percentage_for_hour_type("horas_extras_diurnas_domingo")
+        if total_ext_diurnas_df_hours > 0:
+            valor_total_ext_diurnas_df = (total_ext_diurnas_df_hours * original_empleado.obtener_valor_hora_ordinaria()) + total_ext_diurnas_df_surcharge
+            reporte_str += f"- Horas Extras Diurnas D/F ({porcentaje_ext_diurnas_df}%): {total_ext_diurnas_df_hours:.2f}h (Recargo: ${total_ext_diurnas_df_surcharge:,.2f} | Total: ${valor_total_ext_diurnas_df:,.2f})\n"
+
+        # Horas Extras Nocturnas D/F Combinadas
+        total_ext_nocturnas_df_hours = acum_horas.get("horas_extras_nocturnas_domingo", 0.0) + acum_horas.get("horas_extras_nocturnas_festivo", 0.0)
+        total_ext_nocturnas_df_surcharge = acum_surcharge_values.get("horas_extras_nocturnas_domingo", 0.0) + acum_surcharge_values.get("horas_extras_nocturnas_festivo", 0.0)
+        porcentaje_ext_nocturnas_df = self.calculadora._get_percentage_for_hour_type("horas_extras_nocturnas_domingo")
+        if total_ext_nocturnas_df_hours > 0:
+            valor_total_ext_nocturnas_df = (total_ext_nocturnas_df_hours * original_empleado.obtener_valor_hora_ordinaria()) + total_ext_nocturnas_df_surcharge
+            reporte_str += f"- Horas Extras Nocturnas D/F ({porcentaje_ext_nocturnas_df}%): {total_ext_nocturnas_df_hours:.2f}h (Recargo: ${total_ext_nocturnas_df_surcharge:,.2f} | Total: ${valor_total_ext_nocturnas_df:,.2f})\n"
+
+
+        reporte_str += f"\nTotal Valor Bruto Acumulado: ${total_gross_value:,.2f}\n"
+        reporte_str += "-----------------------------------------------------\n"
+
+        self.detallados_report_area.delete(1.0, tk.END)
+        self.detallados_report_area.insert(tk.END, reporte_str)
+
 
     def _open_calendar_dialog(self, target_entry):
         """Abre un diálogo de calendario para seleccionar una fecha."""
@@ -598,7 +1015,7 @@ class RecargosApp:
 
         nuevo_empleado = Empleado(nombre, salario, standard_daily_hours) 
         self.empleados[nombre] = nuevo_empleado
-        messagebox.showinfo("Éxito", f"Empleado '{nombre}' creado con éxito (Salario: ${salario:,.2f}, Horas diarias estándar: {standard_daily_hours}h).")
+        messagebox.showinfo("Éxito", f"Empleado '{nombre}' creado con éxito (Horas diarias estándar: {standard_daily_hours}h).") # Eliminado salario del mensaje
         
         self.entry_nombre_empleado.delete(0, tk.END)
         self.entry_salario_empleado.delete(0, tk.END) 
@@ -622,10 +1039,29 @@ class RecargosApp:
                 current_report_selection = self.reporte_empleado_combobox.get()
                 if current_report_selection not in nombres_empleados:
                     self.reporte_empleado_combobox.set(nombres_empleados[0])
+            
+            if hasattr(self, 'acumulados_empleado_combobox'):
+                self.acumulados_empleado_combobox['values'] = nombres_empleados
+                current_acum_selection = self.acumulados_empleado_combobox.get()
+                if current_acum_selection not in nombres_empleados:
+                    self.acumulados_empleado_combobox.set(nombres_empleados[0])
+            
+            # NUEVO: Actualizar el combobox de la pestaña de recargos detallados
+            if hasattr(self, 'detallados_empleado_combobox'):
+                self.detallados_empleado_combobox['values'] = nombres_empleados
+                current_detallados_selection = self.detallados_empleado_combobox.get()
+                if current_detallados_selection not in nombres_empleados:
+                    self.detallados_empleado_combobox.set(nombres_empleados[0])
+
         else:
             self.empleados_combobox.set("") 
             if hasattr(self, 'reporte_empleado_combobox'):
                 self.reporte_empleado_combobox.set("")
+            if hasattr(self, 'acumulados_empleado_combobox'):
+                self.acumulados_empleado_combobox.set("")
+            if hasattr(self, 'detallados_empleado_combobox'):
+                self.detallados_empleado_combobox.set("")
+
 
     def _actualizar_todas_las_listas_empleados(self):
         """Llama a todos los métodos de actualización de listas y comboboxes de empleados."""
@@ -635,6 +1071,28 @@ class RecargosApp:
 
     def _on_empleado_selected(self, event=None):
         pass
+
+    def _on_dia_compensatorio_toggle(self, *args):
+        """Maneja el estado del checkbox de día compensatorio."""
+        if self.es_dia_compensatorio.get():
+            # Si es día compensatorio, fijar las horas y deshabilitar los combobox
+            self.combo_hora_entrada.set("08:00 AM")
+            self.combo_hora_salida.set("04:00 PM") # 8 horas de trabajo
+            self.combo_hora_entrada.config(state="disabled")
+            self.combo_hora_salida.config(state="disabled")
+            # Opcional: Puedes pre-seleccionar la fecha actual si lo deseas, o dejar que el usuario la elija
+            # self.entry_fecha_jornada.config(state="normal")
+            # self.entry_fecha_jornada.delete(0, tk.END)
+            # self.entry_fecha_jornada.insert(0, datetime.date.today().strftime('%Y-%m-%d'))
+            # self.entry_fecha_jornada.config(state="readonly")
+        else:
+            # Si no es día compensatorio, habilitar los combobox y limpiar la fecha
+            self.combo_hora_entrada.config(state="readonly")
+            self.combo_hora_salida.config(state="readonly")
+            # self.entry_fecha_jornada.config(state="normal")
+            # self.entry_fecha_jornada.delete(0, tk.END)
+            # self.entry_fecha_jornada.config(state="readonly")
+
 
     def _registrar_jornada(self):
         nombre_empleado = self.empleados_combobox.get()
@@ -666,6 +1124,9 @@ class RecargosApp:
         self.entry_fecha_jornada.config(state="normal")
         self.entry_fecha_jornada.delete(0, tk.END)
         self.entry_fecha_jornada.config(state="readonly")
+
+        # Desactivar el checkbox de día compensatorio después de registrar
+        self.es_dia_compensatorio.set(False)
 
         save_app_data(self.empleados, self.calculadora) # Guardar datos después de la modificación
 
@@ -722,7 +1183,7 @@ class RecargosApp:
 
     def _on_tab_change(self, event):
         selected_tab = self.notebook.tab(self.notebook.select(), "text")
-        if selected_tab == "Registro de Jornadas" or selected_tab == "Reportes":
+        if selected_tab == "Registro de Jornadas" or selected_tab == "Reportes" or selected_tab == "Acumulados de Horas" or selected_tab == "Recargos Detallados":
             self._actualizar_lista_empleados()
         elif selected_tab == "Gestión de Empleados": 
             self._actualizar_lista_gestion_empleados()
@@ -737,32 +1198,34 @@ class RecargosApp:
             self.entry_festivo_fecha.config(state="readonly")
         elif selected_tab == "Configuración":
             # Actualizar campos de porcentajes al entrar a la pestaña
+            # Horas Extras (se muestran como porcentaje TOTAL)
             self.entry_extra_diurna_config.delete(0, tk.END)
-            self.entry_extra_diurna_config.insert(0, str(self.calculadora.MULTIPLIER_HORA_EXTRA_DIURNA * 100))
+            self.entry_extra_diurna_config.insert(0, str(round(self.calculadora.MULTIPLIER_HORA_EXTRA_DIURNA * 100)))
 
             self.entry_extra_nocturna_config.delete(0, tk.END)
-            self.entry_extra_nocturna_config.insert(0, str(self.calculadora.MULTIPLIER_HORA_EXTRA_NOCTURNA * 100))
+            self.entry_extra_nocturna_config.insert(0, str(round(self.calculadora.MULTIPLIER_HORA_EXTRA_NOCTURNA * 100)))
 
             self.entry_extra_diurna_domingofestivo_config.delete(0, tk.END)
-            self.entry_extra_diurna_domingofestivo_config.insert(0, str(self.calculadora.MULTIPLIER_EXTRA_DIURNA_DOMINGOFESTIVO * 100))
+            self.entry_extra_diurna_domingofestivo_config.insert(0, str(round(self.calculadora.MULTIPLIER_EXTRA_DIURNA_DOMINGOFESTIVO * 100)))
 
             self.entry_extra_nocturna_domingofestivo_config.delete(0, tk.END)
-            self.entry_extra_nocturna_domingofestivo_config.insert(0, str(self.calculadora.MULTIPLIER_EXTRA_NOCTURNA_DOMINGOFESTIVO * 100))
+            self.entry_extra_nocturna_domingofestivo_config.insert(0, str(round(self.calculadora.MULTIPLIER_EXTRA_NOCTURNA_DOMINGOFESTIVO * 100)))
 
+            # Recargos (se muestran como porcentaje ADICIONAL)
             self.entry_ordinaria_nocturna_config.delete(0, tk.END)
-            self.entry_ordinaria_nocturna_config.insert(0, str(round((self.calculadora.MULTIPLIER_HORA_ORDINARIA_NOCTURNA - 1.00) * 100)))
+            self.entry_ordinaria_nocturna_config.insert(0, str(round(self.calculadora.ADDITIONAL_PERCENTAGE_DECIMAL_HORA_ORDINARIA_NOCTURNA * 100)))
 
             self.entry_domingofestivo_base_config.delete(0, tk.END)
-            self.entry_domingofestivo_base_config.insert(0, str(round((self.calculadora.MULTIPLIER_RECARGO_DOMINGOFESTIVO_DIURNO_BASE - 1.00) * 100)))
+            self.entry_domingofestivo_base_config.insert(0, str(round(self.calculadora.ADDITIONAL_PERCENTAGE_DECIMAL_RECARGO_DOMINGOFESTIVO_DIURNO_BASE * 100)))
 
             self.entry_ordinaria_nocturna_domingofestivo_config.delete(0, tk.END)
-            self.entry_ordinaria_nocturna_domingofestivo_config.insert(0, str(round((self.calculadora.MULTIPLIER_ORDINARIA_NOCTURNA_DOMINGOFESTIVO - 1.00) * 100)))
+            self.entry_ordinaria_nocturna_domingofestivo_config.insert(0, str(round(self.calculadora.ADDITIONAL_PERCENTAGE_DECIMAL_ORDINARIA_NOCTURNA_DOMINGOFESTIVO * 100)))
 
             self.entry_domingofestivo_diurno_larga_jornada_config.delete(0, tk.END)
-            self.entry_domingofestivo_diurno_larga_jornada_config.insert(0, str(round((self.calculadora.MULTIPLIER_RECARGO_DOMINGOFESTIVO_DIURNO_LARGA_JORNADA - 1.00) * 100)))
+            self.entry_domingofestivo_diurno_larga_jornada_config.insert(0, str(round(self.calculadora.ADDITIONAL_PERCENTAGE_DECIMAL_RECARGO_DOMINGOFESTIVO_DIURNO_LARGA_JORNADA * 100)))
 
             self.entry_domingofestivo_nocturno_larga_jornada_config.delete(0, tk.END)
-            self.entry_domingofestivo_nocturno_larga_jornada_config.insert(0, str(round((self.calculadora.MULTIPLIER_RECARGO_DOMINGOFESTIVO_NOCTURNO_LARGA_JORNADA - 1.00) * 100)))
+            self.entry_domingofestivo_nocturno_larga_jornada_config.insert(0, str(round(self.calculadora.ADDITIONAL_PERCENTAGE_DECIMAL_RECARGO_DOMINGOFESTIVO_NOCTURNO_LARGA_JORNADA * 100)))
 
 
     def _agregar_festivo_gui(self):
@@ -795,7 +1258,7 @@ class RecargosApp:
             messagebox.showinfo("Gestión de Festivos", mensaje)
             
             self.entry_festivo_fecha.config(state="normal") # Habilitar para limpiar
-            self.entry_festivo_fecha.delete(0, tk.END)
+            self.entry_festivo_fecha.delete(0, tk.END) # Corregido: usar self.entry_festivo_fecha
             self.entry_festivo_fecha.config(state="readonly") # Volver a solo lectura
 
             self._actualizar_lista_festivos()
@@ -811,48 +1274,51 @@ class RecargosApp:
 
     def _actualizar_porcentajes_gui(self):
         # Obtener valores de los campos de entrada
-        nuevo_extra_diurna = self.entry_extra_diurna_config.get().strip()
-        nuevo_extra_nocturna = self.entry_extra_nocturna_config.get().strip()
-        nuevo_extra_diurna_domingofestivo = self.entry_extra_diurna_domingofestivo_config.get().strip()
-        nuevo_extra_nocturna_domingofestivo = self.entry_extra_nocturna_domingofestivo_config.get().strip()
+        # Horas Extras (se esperan como porcentaje TOTAL)
+        nuevo_extra_diurna_str = self.entry_extra_diurna_config.get().strip()
+        nuevo_extra_nocturna_str = self.entry_extra_nocturna_config.get().strip()
+        nuevo_extra_diurna_domingofestivo_str = self.entry_extra_diurna_domingofestivo_config.get().strip()
+        nuevo_extra_nocturna_domingofestivo_str = self.entry_extra_nocturna_domingofestivo_config.get().strip()
         
-        nuevo_ordinaria_nocturna_recargo = self.entry_ordinaria_nocturna_config.get().strip()
-        nuevo_recargo_domingofestivo_diurno_base_recargo = self.entry_domingofestivo_base_config.get().strip()
-        nuevo_ordinaria_nocturna_domingofestivo_recargo = self.entry_ordinaria_nocturna_domingofestivo_config.get().strip()
-        nuevo_recargo_domingofestivo_diurno_larga_jornada_recargo = self.entry_domingofestivo_diurno_larga_jornada_config.get().strip()
-        nuevo_recargo_domingofestivo_nocturno_larga_jornada_recargo = self.entry_domingofestivo_nocturno_larga_jornada_config.get().strip()
+        # Recargos (se esperan como porcentaje ADICIONAL)
+        nuevo_ordinaria_nocturna_recargo_str = self.entry_ordinaria_nocturna_config.get().strip()
+        nuevo_recargo_domingofestivo_diurno_base_recargo_str = self.entry_domingofestivo_base_config.get().strip()
+        nuevo_ordinaria_nocturna_domingofestivo_recargo_str = self.entry_ordinaria_nocturna_domingofestivo_config.get().strip()
+        nuevo_recargo_domingofestivo_diurno_larga_jornada_recargo_str = self.entry_domingofestivo_diurno_larga_jornada_config.get().strip()
+        nuevo_recargo_domingofestivo_nocturno_larga_jornada_recargo_str = self.entry_domingofestivo_nocturno_larga_jornada_config.get().strip()
 
         try:
             # Convertir a float. Si el campo está vacío, None.
-            p_extra_diurna = float(nuevo_extra_diurna) if nuevo_extra_diurna else None
-            p_extra_nocturna = float(nuevo_extra_nocturna) if nuevo_extra_nocturna else None
-            p_extra_diurna_domingofestivo = float(nuevo_extra_diurna_domingofestivo) if nuevo_extra_diurna_domingofestivo else None
-            p_extra_nocturna_domingofestivo = float(nuevo_extra_nocturna_domingofestivo) if nuevo_extra_nocturna_domingofestivo else None
+            p_extra_diurna = float(nuevo_extra_diurna_str) if nuevo_extra_diurna_str else None
+            p_extra_nocturna = float(nuevo_extra_nocturna_str) if nuevo_extra_nocturna_str else None
+            p_extra_diurna_domingofestivo = float(nuevo_extra_diurna_domingofestivo_str) if nuevo_extra_diurna_domingofestivo_str else None
+            p_extra_nocturna_domingofestivo = float(nuevo_extra_nocturna_domingofestivo_str) if nuevo_extra_nocturna_domingofestivo_str else None
             
-            p_ordinaria_nocturna_recargo = float(nuevo_ordinaria_nocturna_recargo) if nuevo_ordinaria_nocturna_recargo else None
-            p_recargo_domingofestivo_diurno_base_recargo = float(nuevo_recargo_domingofestivo_diurno_base_recargo) if nuevo_recargo_domingofestivo_diurno_base_recargo else None
-            p_ordinaria_nocturna_domingofestivo_recargo = float(nuevo_ordinaria_nocturna_domingofestivo_recargo) if nuevo_ordinaria_nocturna_domingofestivo_recargo else None
-            p_recargo_domingofestivo_diurno_larga_jornada_recargo = float(nuevo_recargo_domingofestivo_diurno_larga_jornada_recargo) if nuevo_recargo_domingofestivo_diurno_larga_jornada_recargo else None
-            p_recargo_domingofestivo_nocturno_larga_jornada_recargo = float(nuevo_recargo_domingofestivo_nocturno_larga_jornada_recargo) if nuevo_recargo_domingofestivo_nocturno_larga_jornada_recargo else None
+            p_ordinaria_nocturna_recargo = float(nuevo_ordinaria_nocturna_recargo_str) if nuevo_ordinaria_nocturna_recargo_str else None
+            p_recargo_domingofestivo_diurno_base_recargo = float(nuevo_recargo_domingofestivo_diurno_base_recargo_str) if nuevo_recargo_domingofestivo_diurno_base_recargo_str else None
+            p_ordinaria_nocturna_domingofestivo_recargo = float(nuevo_ordinaria_nocturna_domingofestivo_recargo_str) if nuevo_ordinaria_nocturna_domingofestivo_recargo_str else None
+            p_recargo_domingofestivo_diurno_larga_jornada_recargo = float(nuevo_recargo_domingofestivo_diurno_larga_jornada_recargo_str) if nuevo_recargo_domingofestivo_diurno_larga_jornada_recargo_str else None
+            p_recargo_domingofestivo_nocturno_larga_jornada_recargo = float(nuevo_recargo_domingofestivo_nocturno_larga_jornada_recargo_str) if nuevo_recargo_domingofestivo_nocturno_larga_jornada_recargo_str else None
 
-            # Validar rangos para porcentajes (total o adicional)
-            # Para los "Total" (Horas Extra), el rango puede ser más amplio
-            max_total_percentage = 400.0 
-            # Para los "Adicional" (Recargos), el rango es sobre el 100% base
-            max_additional_percentage = 300.0 
+            # Validar rangos para porcentajes
+            max_percentage = 350.0 # Un porcentaje total máximo razonable
+            max_additional_percentage = 300.0 # Un porcentaje adicional máximo razonable
 
-            if (p_extra_diurna is not None and (p_extra_diurna < 0 or p_extra_diurna > max_total_percentage)) or \
-               (p_extra_nocturna is not None and (p_extra_nocturna < 0 or p_extra_nocturna > max_total_percentage)) or \
-               (p_extra_diurna_domingofestivo is not None and (p_extra_diurna_domingofestivo < 0 or p_extra_diurna_domingofestivo > max_total_percentage)) or \
-               (p_extra_nocturna_domingofestivo is not None and (p_extra_nocturna_domingofestivo < 0 or p_extra_nocturna_domingofestivo > max_total_percentage)):
-                raise ValueError(f"Los porcentajes 'Total' deben estar entre 0 y {max_total_percentage}.")
+            # Validar porcentajes TOTALES (para extras)
+            if (p_extra_diurna is not None and (p_extra_diurna < 0 or p_extra_diurna > max_percentage)) or \
+               (p_extra_nocturna is not None and (p_extra_nocturna < 0 or p_extra_nocturna > max_percentage)) or \
+               (p_extra_diurna_domingofestivo is not None and (p_extra_diurna_domingofestivo < 0 or p_extra_diurna_domingofestivo > max_percentage)) or \
+               (p_extra_nocturna_domingofestivo is not None and (p_extra_nocturna_domingofestivo < 0 or p_extra_nocturna_domingofestivo > max_percentage)):
+                raise ValueError(f"Los porcentajes 'Total' deben estar entre 0 y {max_percentage}.")
 
+            # Validar porcentajes ADICIONALES (para recargos)
             if (p_ordinaria_nocturna_recargo is not None and (p_ordinaria_nocturna_recargo < 0 or p_ordinaria_nocturna_recargo > max_additional_percentage)) or \
                (p_recargo_domingofestivo_diurno_base_recargo is not None and (p_recargo_domingofestivo_diurno_base_recargo < 0 or p_recargo_domingofestivo_diurno_base_recargo > max_additional_percentage)) or \
                (p_ordinaria_nocturna_domingofestivo_recargo is not None and (p_ordinaria_nocturna_domingofestivo_recargo < 0 or p_ordinaria_nocturna_domingofestivo_recargo > max_additional_percentage)) or \
                (p_recargo_domingofestivo_diurno_larga_jornada_recargo is not None and (p_recargo_domingofestivo_diurno_larga_jornada_recargo < 0 or p_recargo_domingofestivo_diurno_larga_jornada_recargo > max_additional_percentage)) or \
                (p_recargo_domingofestivo_nocturno_larga_jornada_recargo is not None and (p_recargo_domingofestivo_nocturno_larga_jornada_recargo < 0 or p_recargo_domingofestivo_nocturno_larga_jornada_recargo > max_additional_percentage)):
                 raise ValueError(f"Los porcentajes 'Adicional' deben estar entre 0 y {max_additional_percentage}.")
+
 
             mensaje = self.calculadora.actualizar_porcentajes_recargo(
                 nuevo_extra_diurna=p_extra_diurna,
@@ -911,6 +1377,8 @@ class RecargosApp:
         empleado1.registrar_jornada(datetime.date(2025, 7, 27), datetime.time(0, 0), datetime.time(0, 0)) # 24 horas en Domingo
         # Jornada de 7 horas en Domingo Diurno para probar 0.80
         empleado1.registrar_jornada(datetime.date(2025, 7, 28), datetime.time(8, 0), datetime.time(15, 0)) # 7 horas en Domingo
+        # Jornada de 22 horas en Domingo Diurno para probar 0.80
+        empleado2.registrar_jornada(datetime.date(2025, 7, 29), datetime.time(6, 0), datetime.time(4, 0)) # 22 horas en Domingo (6am a 4am del día siguiente)
         # Jornada de 24 horas en Festivo Nocturno para probar 215%
         empleado2.registrar_jornada(datetime.date(2025, 12, 25), datetime.time(21, 0), datetime.time(21, 0) + datetime.timedelta(days=1)) # 24 horas en Festivo, nocturnas
 

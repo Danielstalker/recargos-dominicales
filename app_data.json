@@ -1,7 +1,14 @@
 {
     "empleados": {
-        "oscar": {
-            "nombre": "oscar",
+        "Oscar Daniel Osso Vega": {
+            "nombre": "Oscar Daniel Osso Vega",
+            "salario_mensual": 1423500.0,
+            "standard_daily_hours": 8,
+            "tipo_contrato": "indefinido",
+            "jornadas_registradas": []
+        },
+        "Luis Miguel Cardoso": {
+            "nombre": "Luis Miguel Cardoso",
             "salario_mensual": 1423500.0,
             "standard_daily_hours": 8,
             "tipo_contrato": "indefinido",
@@ -15,6 +22,11 @@
                     "fecha": "2025-06-02",
                     "hora_entrada": "14:00:00",
                     "hora_salida": "22:00:00"
+                },
+                {
+                    "fecha": "2025-06-03",
+                    "hora_entrada": "08:00:00",
+                    "hora_salida": "16:00:00"
                 },
                 {
                     "fecha": "2025-06-04",
@@ -57,11 +69,6 @@
                     "hora_salida": "06:00:00"
                 },
                 {
-                    "fecha": "2025-06-13",
-                    "hora_entrada": "14:00:00",
-                    "hora_salida": "22:00:00"
-                },
-                {
                     "fecha": "2025-06-14",
                     "hora_entrada": "06:00:00",
                     "hora_salida": "14:00:00"
@@ -97,6 +104,11 @@
                     "hora_salida": "14:00:00"
                 },
                 {
+                    "fecha": "2025-06-21",
+                    "hora_entrada": "08:00:00",
+                    "hora_salida": "16:00:00"
+                },
+                {
                     "fecha": "2025-06-24",
                     "hora_entrada": "14:00:00",
                     "hora_salida": "22:00:00"
@@ -130,51 +142,43 @@
                     "fecha": "2025-06-30",
                     "hora_entrada": "14:00:00",
                     "hora_salida": "22:00:00"
-                }
-            ]
-        },
-        "daniel": {
-            "nombre": "daniel",
-            "salario_mensual": 1423500.0,
-            "standard_daily_hours": 8,
-            "tipo_contrato": "indefinido",
-            "jornadas_registradas": [
+                },
                 {
-                    "fecha": "2025-07-15",
-                    "hora_entrada": "08:00:00",
-                    "hora_salida": "17:00:00"
+                    "fecha": "2025-06-13",
+                    "hora_entrada": "14:00:00",
+                    "hora_salida": "22:00:00"
                 }
             ]
         }
     },
-    "dias_festivos": [
-        "2025-01-01",
-        "2025-01-06",
-        "2025-03-24",
-        "2025-04-17",
-        "2025-04-18",
-        "2025-05-01",
-        "2025-06-02",
-        "2025-06-23",
-        "2025-06-30",
-        "2025-07-20",
-        "2025-08-07",
-        "2025-08-18",
-        "2025-10-13",
-        "2025-11-03",
-        "2025-11-17",
-        "2025-12-08",
-        "2025-12-25"
-    ],
-    "configuracion_recargos": {
-        "MULTIPLIER_HORA_EXTRA_DIURNA": 0.25,
+    "calculadora_config": {
+        "MULTIPLIER_HORA_EXTRA_DIURNA": 1.25,
         "MULTIPLIER_HORA_EXTRA_NOCTURNA": 1.75,
-        "MULTIPLIER_EXTRA_DIURNA_DOMINGOFESTIVO": 0.0,
-        "MULTIPLIER_EXTRA_NOCTURNA_DOMINGOFESTIVO": 0.5,
+        "MULTIPLIER_EXTRA_DIURNA_DOMINGOFESTIVO": 2.0,
+        "MULTIPLIER_EXTRA_NOCTURNA_DOMINGOFESTIVO": 2.5,
         "ADDITIONAL_PERCENTAGE_DECIMAL_HORA_ORDINARIA_NOCTURNA": 0.35,
-        "ADDITIONAL_PERCENTAGE_DECIMAL_RECARGO_DOMINGOFESTIVO_DIURNO_BASE": 0.75,
-        "ADDITIONAL_PERCENTAGE_DECIMAL_ORDINARIA_NOCTURNA_DOMINGOFESTIVO": 1.1,
-        "ADDITIONAL_PERCENTAGE_DECIMAL_RECARGO_DOMINGOFESTIVO_DIURNO_LARGA_JORNADA": 1.75,
-        "ADDITIONAL_PERCENTAGE_DECIMAL_RECARGO_DOMINGOFESTIVO_NOCTURNO_LARGA_JORNADA": 2.1
+        "ADDITIONAL_PERCENTAGE_DECIMAL_RECARGO_DOMINGOFESTIVO_DIURNO_BASE": 0.8,
+        "ADDITIONAL_PERCENTAGE_DECIMAL_ORDINARIA_NOCTURNA_DOMINGOFESTIVO": 1.15,
+        "ADDITIONAL_PERCENTAGE_DECIMAL_RECARGO_DOMINGOFESTIVO_DIURNO_LARGA_JORNADA": 1.8,
+        "ADDITIONAL_PERCENTAGE_DECIMAL_RECARGO_DOMINGOFESTIVO_NOCTURNO_LARGA_JORNADA": 2.15,
+        "dias_festivos": [
+            "2025-01-01",
+            "2025-01-06",
+            "2025-03-24",
+            "2025-04-17",
+            "2025-04-18",
+            "2025-05-01",
+            "2025-06-02",
+            "2025-06-23",
+            "2025-06-30",
+            "2025-07-20",
+            "2025-08-07",
+            "2025-08-18",
+            "2025-10-13",
+            "2025-11-03",
+            "2025-11-17",
+            "2025-12-08",
+            "2025-12-25"
+        ]
     }
 }

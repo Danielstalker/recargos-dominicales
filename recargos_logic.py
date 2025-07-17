@@ -3,870 +3,757 @@ import json
 import os
 
 class Empleado:
-    """
-    Representa a un empleado con su información básica, tipo de contrato y horario estándar.
-    El valor de la hora ordinaria se calcula a partir del salario mensual.
-    """
-    def __init__(self, nombre, salario_mensual, standard_daily_hours=8, tipo_contrato="indefinido"):
+    def __init__(self, nombre, salario_mensual, standard_daily_hours, tipo_contrato="indefinido"):
         self.nombre = nombre
         self.salario_mensual = salario_mensual
-        self.standard_daily_hours = standard_daily_hours # Horas diarias estándar de trabajo
-        self.tipo_contrato = tipo_contrato
-        self.jornadas_registradas = [] # Lista de diccionarios para registrar jornadas (fecha, hora_entrada, hora_salida)
+        self.standard_daily_hours = standard_daily_hours # Horas diarias estándar
+        self.tipo_contrato = tipo_contrato # Nuevo atributo para el tipo de contrato
+        self.jornadas_registradas = [] # Almacena diccionarios de jornadas
 
     def obtener_valor_hora_ordinaria(self):
-        """Calcula el valor de la hora ordinaria basándose en el salario mensual (sueldo / 220 horas)."""
-        if self.salario_mensual <= 0:
+        # Asume un mes de 30 días y 8 horas diarias para 240 horas/mes
+        # Se usa self.standard_daily_hours para mayor precisión si el estándar cambia
+        if self.standard_daily_hours <= 0:
             return 0.0
-        return self.salario_mensual / 220 # Sueldo / 220 horas como valor de la hora ordinaria
+        return self.salario_mensual / (30 * self.standard_daily_hours)
 
     def registrar_jornada(self, fecha, hora_entrada, hora_salida):
-        """
-        Registra una jornada laboral en un día específico con horas de entrada y salida.
-        """
-        self.jornadas_registradas.append({
+        jornada = {
             "fecha": fecha,
             "hora_entrada": hora_entrada,
             "hora_salida": hora_salida
-        })
-        return f"Jornada registrada para {self.nombre} el {fecha.strftime('%Y-%m-%d')} de {hora_entrada.strftime('%H:%M')} a {hora_salida.strftime('%H:%M')}."
-
-    def to_dict(self):
-        """Convierte el objeto Empleado a un diccionario para serialización JSON."""
-        jornadas_dicts = []
-        for jornada in self.jornadas_registradas:
-            jornadas_dicts.append({
-                "fecha": jornada["fecha"].isoformat(), # Convert date to string (YYYY-MM-DD)
-                "hora_entrada": jornada["hora_entrada"].isoformat(), # Convert time to string (HH:MM:SS.ffffff)
-                "hora_salida": jornada["hora_salida"].isoformat() # Convert time to string (HH:MM:SS.ffffff)
-            })
-        return {
-            "nombre": self.nombre,
-            "salario_mensual": self.salario_mensual,
-            "standard_daily_hours": self.standard_daily_hours,
-            "tipo_contrato": self.tipo_contrato,
-            "jornadas_registradas": jornadas_dicts
         }
+        self.jornadas_registradas.append(jornada)
+        return f"Jornada registrada para {self.nombre} el {fecha.strftime('%Y-%m-%d')} de {hora_entrada.strftime('%I:%M %p')} a {hora_salida.strftime('%I:%M %p')}."
 
-    @staticmethod
-    def from_dict(data):
-        """Crea un objeto Empleado desde un diccionario (deserialización JSON)."""
-        empleado = Empleado(
-            data["nombre"],
-            data["salario_mensual"],
-            data["standard_daily_hours"],
-            data["tipo_contrato"]
-        )
-        empleado.jornadas_registradas = []
-        for jornada_dict in data["jornadas_registradas"]:
-            empleado.jornadas_registradas.append({
-                "fecha": datetime.date.fromisoformat(jornada_dict["fecha"]), # Convert string to date
-                "hora_entrada": datetime.time.fromisoformat(jornada_dict["hora_entrada"]), # Convert string to time
-                "hora_salida": datetime.time.fromisoformat(jornada_dict["hora_salida"]) # Convert string to time
-            })
-        return empleado
 
 class CalculadoraRecargos:
-    """
-    Clase para manejar la lógica de cálculo de recargos,
-    distinguiendo entre domingos y días festivos.
-    Los porcentajes de recargo son ahora MULTIPLICADORES TOTALES sobre el valor de la hora ordinaria.
-    Ejemplo: Un multiplicador de 1.25 para "Hora extra diurna" significa que se paga el 125% del valor de la hora ordinaria.
-    """
     def __init__(self):
-        # Multiplicadores de recargo según la tabla proporcionada (VALOR TOTAL sobre la hora ordinaria)
-        self.MULTIPLIER_HORA_EXTRA_DIURNA = 1.25 # Hora extra diurna 125%
-        self.MULTIPLIER_HORA_EXTRA_NOCTURNA = 1.75 # Horas extras Nocturnas 175%
-        self.MULTIPLIER_EXTRA_DIURNA_DOMINGOFESTIVO = 2.00 # Horas extras diurnas dominicales o festivas 200%
-        self.MULTIPLIER_EXTRA_NOCTURNA_DOMINGOFESTIVO = 2.50 # Horas extras Noctur Dom o Festivas 250%
-        
-        # Para los recargos, la tabla muestra el porcentaje ADICIONAL. Lo convertimos a multiplicador total.
-        self.MULTIPLIER_HORA_ORDINARIA_NOCTURNA = 1.00 + (35 / 100) # Recargo Nocturno 35% -> 135% total
-        self.MULTIPLIER_RECARGO_DOMINGOFESTIVO_DIURNO_BASE = 1.00 + (80 / 100) # Recargo dominical o festivo diurno no compensado (<22h) 80% -> 180% total
-        self.MULTIPLIER_ORDINARIA_NOCTURNA_DOMINGOFESTIVO = 1.00 + (110 / 100) # Recargo Nocturno Dominical o festivo 110% -> 210% total
-        self.MULTIPLIER_RECARGO_DOMINGOFESTIVO_DIURNO_LARGA_JORNADA = 1.00 + (180 / 100) # Recargo dominical o festivo diurno no compensado (>=23h) 180% -> 280% total
-        self.MULTIPLIER_RECARGO_DOMINGOFESTIVO_NOCTURNO_LARGA_JORNADA = 1.00 + (210 / 100) # Recargo Dominical o Festivo nocturno no compensado 210% -> 310% total
+        # Multiplicadores para el VALOR TOTAL de la hora (1.00 + porcentaje adicional)
+        # Por ejemplo, 1.25 para hora extra diurna significa 100% valor base + 25% adicional
+        self.MULTIPLIER_HORA_EXTRA_DIURNA = 1.25 # 25% adicional
+        self.MULTIPLIER_HORA_EXTRA_NOCTURNA = 1.75 # 75% adicional
+        self.MULTIPLIER_EXTRA_DIURNA_DOMINGOFESTIVO = 2.00 # 100% adicional (75% dom/fest + 25% extra diurna)
+        self.MULTIPLIER_EXTRA_NOCTURNA_DOMINGOFESTIVO = 2.50 # 150% adicional (75% dom/fest + 75% extra nocturna)
 
-        # Días festivos de Colombia (pueden ser actualizados manualmente o desde una API externa)
-        self.dias_festivos = [
-            datetime.date(2025, 1, 1), # Año Nuevo
-            datetime.date(2025, 1, 6), # Día de Reyes Magos
+        # Porcentajes ADICIONALES para recargos (solo el porcentaje extra)
+        self.ADDITIONAL_PERCENTAGE_DECIMAL_HORA_ORDINARIA_NOCTURNA = 0.35 # 35%
+        self.ADDITIONAL_PERCENTAGE_DECIMAL_RECARGO_DOMINGOFESTIVO_DIURNO_BASE = 1.80 # 180%
+        self.ADDITIONAL_PERCENTAGE_DECIMAL_ORDINARIA_NOCTURNA_DOMINGOFESTIVO = 1.10 # 110% (75% dom/fest + 35% nocturno)
+        self.ADDITIONAL_PERCENTAGE_DECIMAL_RECARGO_DOMINGOFESTIVO_DIURNO_LARGA_JORNADA = 0.80 # 80% (Para jornadas > 8h en D/F diurno)
+        self.ADDITIONAL_PERCENTAGE_DECIMAL_RECARGO_DOMINGOFESTIVO_NOCTURNO_LARGA_JORNADA = 2.15 # 215% (Para jornadas > 8h en D/F nocturno)
+
+        self.dias_festivos = self._cargar_festivos_iniciales()
+
+    def _cargar_festivos_iniciales(self):
+        # Días festivos de Colombia para 2025 (ejemplo)
+        # Fuente: https://www.calendario-colombia.com/dias-festivos-2025.html
+        festivos = [
+            datetime.date(2025, 1, 1),  # Año Nuevo
+            datetime.date(2025, 1, 6),  # Día de Reyes Magos
             datetime.date(2025, 3, 24), # Día de San José
             datetime.date(2025, 4, 17), # Jueves Santo
             datetime.date(2025, 4, 18), # Viernes Santo
-            datetime.date(2025, 5, 1), # Día del Trabajo
-            datetime.date(2025, 6, 2), # Día de la Ascensión
-            datetime.date(2025, 6, 23), # Corpus Christi
-            datetime.date(2025, 6, 30), # Sagrado Corazón de Jesús
-            datetime.date(2025, 7, 20), # Día de la Independencia
-            datetime.date(2025, 8, 7), # Batalla de Boyacá
+            datetime.date(2025, 5, 1),  # Día del Trabajo
+            datetime.date(2025, 5, 26), # Día de la Ascensión
+            datetime.date(2025, 6, 16), # Corpus Christi
+            datetime.date(2025, 6, 23), # Sagrado Corazón
+            datetime.date(2025, 7, 20), # Grito de Independencia
+            datetime.date(2025, 8, 7),  # Batalla de Boyacá
             datetime.date(2025, 8, 18), # Asunción de la Virgen
-            datetime.date(2025, 10, 13), # Día de la Raza
+            datetime.date(2025, 10, 13),# Día de la Raza
             datetime.date(2025, 11, 3), # Día de Todos los Santos
-            datetime.date(2025, 11, 17), # Independencia de Cartagena
+            datetime.date(2025, 11, 17),# Independencia de Cartagena
             datetime.date(2025, 12, 8), # Día de la Inmaculada Concepción
             datetime.date(2025, 12, 25) # Navidad
         ]
-        self.dias_festivos.sort()
+        return sorted(list(set(festivos))) # Eliminar duplicados y ordenar
 
-    def es_domingo(self, fecha):
-        """Verifica si una fecha dada es domingo."""
-        return fecha.weekday() == 6 # 6 es domingo (Monday=0, Sunday=6)
+    def es_festivo_o_domingo(self, fecha):
+        return fecha.weekday() == 6 or fecha in self.dias_festivos # 6 es domingo
 
-    def es_festivo(self, fecha):
-        """Verifica si una fecha dada es un día festivo."""
-        return fecha in self.dias_festivos
+    def agregar_dia_festivo(self, fecha):
+        if fecha not in self.dias_festivos:
+            self.dias_festivos.append(fecha)
+            self.dias_festivos.sort()
+            return f"Día festivo {fecha.strftime('%Y-%m-%d')} agregado."
+        return f"El día {fecha.strftime('%Y-%m-%d')} ya es un día festivo registrado."
 
-    def _categorize_shift_hours(self, empleado, fecha, hora_entrada, hora_salida):
+    def eliminar_dia_festivo(self, fecha):
+        if fecha in self.dias_festivos:
+            self.dias_festivos.remove(fecha)
+            return f"Día festivo {fecha.strftime('%Y-%m-%d')} eliminado."
+        return f"El día {fecha.strftime('%Y-%m-%d')} no se encontró en la lista de festivos."
+
+    def _get_percentage_for_hour_type(self, hour_type):
         """
-        Categoriza las horas de una jornada en ordinarias, extras, diurnas, nocturnas,
-        y si son en domingo o festivo (separadamente), basándose en el horario estándar del empleado.
+        Retorna el porcentaje ADICIONAL para un tipo de hora dado.
+        (Este método se mantiene para cálculos internos y para mostrar el porcentaje en los reportes)
         """
-        dt_entrada = datetime.datetime.combine(fecha, hora_entrada)
-        dt_salida = datetime.datetime.combine(fecha, hora_salida)
-
-        # Manejar turnos que cruzan la medianoche
-        if dt_salida < dt_entrada:
-            dt_salida += datetime.timedelta(days=1)
-
-        standard_daily_minutes = empleado.standard_daily_hours * 60
-
-        # Categorías de horas separadas para Domingo y Festivo
-        categorized_minutes = {
-            "horas_ordinarias_diurnas": 0,       # Día regular (no D/F), diurnas, ordinarias
-            "horas_ordinarias_nocturnas": 0,     # Día regular (no D/F), nocturnas, ordinarias
-            "horas_extras_diurnas": 0,           # Día regular (no D/F), diurnas, extras
-            "horas_extras_nocturnas": 0,         # Día regular (no D/F), nocturnas, extras
-            
-            # Categorías para Domingo
-            "horas_ordinarias_diurnas_domingo": 0,
-            "horas_ordinarias_nocturnas_domingo": 0,
-            "horas_extras_diurnas_domingo": 0,
-            "horas_extras_nocturnas_domingo": 0,
-
-            # Categorías para Festivo
-            "horas_ordinarias_diurnas_festivo": 0,
-            "horas_ordinarias_nocturnas_festivo": 0,
-            "horas_extras_diurnas_festivo": 0,
-            "horas_extras_nocturnas_festivo": 0,
-        }
-
-        current_dt = dt_entrada
-        minutes_processed = 0
-
-        while current_dt < dt_salida:
-            minutes_processed += 1
-            
-            current_time = current_dt.time()
-            # Determinar si este minuto es nocturno (entre 9 PM y 6 AM)
-            is_nocturnal = (current_time >= datetime.time(21, 0) or current_time < datetime.time(6, 0))
-
-            is_domingo_actual = current_dt.weekday() == 6 # 6 es domingo
-            is_festivo_actual = current_dt.date() in self.dias_festivos
-
-            if is_festivo_actual: # Priorizar festivo si es ambos (domingo y festivo)
-                if minutes_processed <= standard_daily_minutes:
-                    if is_nocturnal:
-                        categorized_minutes["horas_ordinarias_nocturnas_festivo"] += 1
-                    else:
-                        categorized_minutes["horas_ordinarias_diurnas_festivo"] += 1
-                else: # Horas extras en festivo
-                    if is_nocturnal:
-                        categorized_minutes["horas_extras_nocturnas_festivo"] += 1
-                    else:
-                        categorized_minutes["horas_extras_diurnas_festivo"] += 1
-            elif is_domingo_actual: # Es domingo, pero no festivo
-                if minutes_processed <= standard_daily_minutes:
-                    if is_nocturnal:
-                        categorized_minutes["horas_ordinarias_nocturnas_domingo"] += 1
-                    else:
-                        categorized_minutes["horas_ordinarias_diurnas_domingo"] += 1
-                else: # Horas extras en domingo
-                    if is_nocturnal:
-                        categorized_minutes["horas_extras_nocturnas_domingo"] += 1
-                    else:
-                        categorized_minutes["horas_extras_diurnas_domingo"] += 1
-            else: # Día regular (no domingo ni festivo)
-                if minutes_processed <= standard_daily_minutes:
-                    if is_nocturnal:
-                        categorized_minutes["horas_ordinarias_nocturnas"] += 1
-                    else:
-                        categorized_minutes["horas_ordinarias_diurnas"] += 1
-                else: # Horas extras en día regular
-                    if is_nocturnal:
-                        categorized_minutes["horas_extras_nocturnas"] += 1
-                    else:
-                        categorized_minutes["horas_extras_diurnas"] += 1
-            
-            current_dt += datetime.timedelta(minutes=1)
-
-        # Convertir minutos a horas
-        for key in categorized_minutes:
-            categorized_minutes[key] /= 60.0
-
-        return categorized_minutes
+        if hour_type == "horas_ordinarias_nocturnas":
+            return round(self.ADDITIONAL_PERCENTAGE_DECIMAL_HORA_ORDINARIA_NOCTURNA * 100)
+        elif hour_type == "horas_extras_diurnas":
+            return round((self.MULTIPLIER_HORA_EXTRA_DIURNA - 1.0) * 100)
+        elif hour_type == "horas_extras_nocturnas":
+            return round((self.MULTIPLIER_HORA_EXTRA_NOCTURNA - 1.0) * 100)
+        elif hour_type in ["horas_ordinarias_diurnas_domingo", "horas_ordinarias_diurnas_festivo"]:
+            return round(self.ADDITIONAL_PERCENTAGE_DECIMAL_RECARGO_DOMINGOFESTIVO_DIURNO_BASE * 100)
+        elif hour_type in ["horas_ordinarias_nocturnas_domingo", "horas_ordinarias_nocturnas_festivo"]:
+            return round(self.ADDITIONAL_PERCENTAGE_DECIMAL_ORDINARIA_NOCTURNA_DOMINGOFESTIVO * 100)
+        elif hour_type in ["horas_extras_diurnas_domingo", "horas_extras_diurnas_festivo"]:
+            return round((self.MULTIPLIER_EXTRA_DIURNA_DOMINGOFESTIVO - 1.0) * 100)
+        elif hour_type in ["horas_extras_nocturnas_domingo", "horas_extras_nocturnas_festivo"]:
+            return round((self.MULTIPLIER_EXTRA_NOCTURNA_DOMINGOFESTIVO - 1.0) * 100)
+        # Casos específicos de jornada larga en D/F (si se manejan por separado en reportes)
+        elif hour_type == "recargo_domingofestivo_diurno_larga_jornada":
+            return round(self.ADDITIONAL_PERCENTAGE_DECIMAL_RECARGO_DOMINGOFESTIVO_DIURNO_LARGA_JORNADA * 100)
+        elif hour_type == "recargo_domingofestivo_nocturno_larga_jornada":
+            return round(self.ADDITIONAL_PERCENTAGE_DECIMAL_RECARGO_DOMINGOFESTIVO_NOCTURNO_LARGA_JORNADA * 100)
+        return 0 # Para horas ordinarias diurnas que no tienen recargo adicional
 
     def calcular_recargos_jornada(self, empleado, jornada):
-        """
-        Calcula el valor total de la jornada (base + recargos adicionales)
-        y el valor monetario de los recargos adicionales para cada tipo de hora.
-        La fórmula general para el valor bruto es:
-        horas_categorizadas * valor_hora_ordinaria * MULTIPLICADOR
-        El valor de recargo adicional es:
-        horas_categorizadas * valor_hora_ordinaria * (MULTIPLIER - 1)
-        """
         fecha = jornada["fecha"]
         hora_entrada = jornada["hora_entrada"]
         hora_salida = jornada["hora_salida"]
 
-        dt_entrada = datetime.datetime.combine(fecha, hora_entrada)
-        dt_salida = datetime.datetime.combine(fecha, hora_salida)
-        if dt_salida < dt_entrada: # Manejar turnos que cruzan la medianoche para calcular la duración
-            dt_salida += datetime.timedelta(days=1)
-        
-        total_shift_duration = dt_salida - dt_entrada
-        total_shift_hours = total_shift_duration.total_seconds() / 3600.0
-
-
-        categorized_hours = self._categorize_shift_hours(empleado, fecha, hora_entrada, hora_salida)
         valor_hora_ordinaria = empleado.obtener_valor_hora_ordinaria()
         
-        total_gross_value_jornada = 0.0 # Suma del valor total (base + recargos)
-        total_surcharge_value_jornada = 0.0 # Suma de solo los recargos adicionales
+        # Calcular duración total de la jornada en horas
+        # Manejar jornadas que cruzan la medianoche
+        if hora_salida <= hora_entrada: # Si la hora de salida es menor o igual a la de entrada, es al día siguiente
+            delta_tiempo = (datetime.datetime.combine(fecha + datetime.timedelta(days=1), hora_salida) - 
+                            datetime.datetime.combine(fecha, hora_entrada))
+        else:
+            delta_tiempo = datetime.datetime.combine(fecha, hora_salida) - datetime.datetime.combine(fecha, hora_entrada)
         
-        # Diccionario para almacenar solo el VALOR DEL RECARGO ADICIONAL por categoría
-        categorized_surcharge_values = { 
-            "horas_ordinarias_diurnas": 0.0, # No hay recargo adicional para estas
+        total_horas_jornada = delta_tiempo.total_seconds() / 3600.0
+
+        # Inicializar contadores de horas por tipo
+        horas_categorizadas = {
+            "horas_ordinarias_diurnas": 0.0,
             "horas_ordinarias_nocturnas": 0.0,
             "horas_extras_diurnas": 0.0,
             "horas_extras_nocturnas": 0.0,
-            
             "horas_ordinarias_diurnas_domingo": 0.0,
             "horas_ordinarias_nocturnas_domingo": 0.0,
             "horas_extras_diurnas_domingo": 0.0,
             "horas_extras_nocturnas_domingo": 0.0,
-
             "horas_ordinarias_diurnas_festivo": 0.0,
             "horas_ordinarias_nocturnas_festivo": 0.0,
             "horas_extras_diurnas_festivo": 0.0,
             "horas_extras_nocturnas_festivo": 0.0,
         }
 
-        # 1. Horas ordinarias diurnas (días regulares) - Multiplicador 1.00 (100%)
-        total_gross_value_jornada += categorized_hours["horas_ordinarias_diurnas"] * valor_hora_ordinaria * 1.00
+        # Iterar hora por hora para categorizar
+        current_time = datetime.datetime.combine(fecha, hora_entrada)
+        end_time = datetime.datetime.combine(fecha, hora_salida)
+        if hora_salida <= hora_entrada:
+            end_time = datetime.datetime.combine(fecha + datetime.timedelta(days=1), hora_salida)
 
-        # 2. Horas ordinarias nocturnas (días regulares)
-        if categorized_hours["horas_ordinarias_nocturnas"] > 0:
-            gross_amount = categorized_hours["horas_ordinarias_nocturnas"] * valor_hora_ordinaria * self.MULTIPLIER_HORA_ORDINARIA_NOCTURNA
-            surcharge_amount = gross_amount - (categorized_hours["horas_ordinarias_nocturnas"] * valor_hora_ordinaria)
-            categorized_surcharge_values["horas_ordinarias_nocturnas"] = surcharge_amount
-            total_surcharge_value_jornada += surcharge_amount
-            total_gross_value_jornada += gross_amount
-            
-        # 3. Horas extras diurnas (días regulares)
-        if categorized_hours["horas_extras_diurnas"] > 0:
-            gross_amount = categorized_hours["horas_extras_diurnas"] * valor_hora_ordinaria * self.MULTIPLIER_HORA_EXTRA_DIURNA
-            surcharge_amount = gross_amount - (categorized_hours["horas_extras_diurnas"] * valor_hora_ordinaria)
-            categorized_surcharge_values["horas_extras_diurnas"] = surcharge_amount
-            total_surcharge_value_jornada += surcharge_amount
-            total_gross_value_jornada += gross_amount
-
-        # 4. Horas extras nocturnas (días regulares)
-        if categorized_hours["horas_extras_nocturnas"] > 0:
-            gross_amount = categorized_hours["horas_extras_nocturnas"] * valor_hora_ordinaria * self.MULTIPLIER_HORA_EXTRA_NOCTURNA
-            surcharge_amount = gross_amount - (categorized_hours["horas_extras_nocturnas"] * valor_hora_ordinaria)
-            categorized_surcharge_values["horas_extras_nocturnas"] = surcharge_amount
-            total_surcharge_value_jornada += surcharge_amount
-            total_gross_value_jornada += gross_amount
-
-        # --- Cálculos para Horas en Domingo ---
-        # 5. Horas ordinarias diurnas en Domingo -> Multiplicador condicional
-        if categorized_hours["horas_ordinarias_diurnas_domingo"] > 0:
-            if total_shift_hours < 22: # Menos de 22 horas
-                multiplier = self.MULTIPLIER_RECARGO_DOMINGOFESTIVO_DIURNO_BASE # 1.80
-            elif total_shift_hours >= 23: # 23 horas o más
-                multiplier = self.MULTIPLIER_RECARGO_DOMINGOFESTIVO_DIURNO_LARGA_JORNADA # 2.80
-            else: # Para 22 horas exactas, o si hay un rango entre 22 y 23
-                # Puedes definir un comportamiento específico para 22 horas si es necesario,
-                # por ahora, usaremos el valor base si no cumple las otras condiciones.
-                multiplier = self.MULTIPLIER_RECARGO_DOMINGOFESTIVO_DIURNO_BASE # O un valor por defecto
-            
-            gross_amount = categorized_hours["horas_ordinarias_diurnas_domingo"] * valor_hora_ordinaria * multiplier
-            surcharge_amount = gross_amount - (categorized_hours["horas_ordinarias_diurnas_domingo"] * valor_hora_ordinaria)
-            categorized_surcharge_values["horas_ordinarias_diurnas_domingo"] = surcharge_amount
-            total_surcharge_value_jornada += surcharge_amount
-            total_gross_value_jornada += gross_amount
-
-        # 6. Horas ordinarias nocturnas en Domingo -> Multiplicador condicional
-        if categorized_hours["horas_ordinarias_nocturnas_domingo"] > 0:
-            if total_shift_hours >= 23:
-                multiplier = self.MULTIPLIER_RECARGO_DOMINGOFESTIVO_NOCTURNO_LARGA_JORNADA # 3.10
-            else:
-                multiplier = self.MULTIPLIER_ORDINARIA_NOCTURNA_DOMINGOFESTIVO # 2.10
-            
-            gross_amount = categorized_hours["horas_ordinarias_nocturnas_domingo"] * valor_hora_ordinaria * multiplier
-            surcharge_amount = gross_amount - (categorized_hours["horas_ordinarias_nocturnas_domingo"] * valor_hora_ordinaria)
-            categorized_surcharge_values["horas_ordinarias_nocturnas_domingo"] = surcharge_amount
-            total_surcharge_value_jornada += surcharge_amount
-            total_gross_value_jornada += gross_amount
-
-        # 7. Horas extras diurnas en Domingo
-        if categorized_hours["horas_extras_diurnas_domingo"] > 0:
-            gross_amount = categorized_hours["horas_extras_diurnas_domingo"] * valor_hora_ordinaria * self.MULTIPLIER_EXTRA_DIURNA_DOMINGOFESTIVO # 2.00
-            surcharge_amount = gross_amount - (categorized_hours["horas_extras_diurnas_domingo"] * valor_hora_ordinaria)
-            categorized_surcharge_values["horas_extras_diurnas_domingo"] = surcharge_amount
-            total_surcharge_value_jornada += surcharge_amount
-            total_gross_value_jornada += gross_amount
-
-        # 8. Horas extras nocturnas en Domingo
-        if categorized_hours["horas_extras_nocturnas_domingo"] > 0:
-            gross_amount = categorized_hours["horas_extras_nocturnas_domingo"] * valor_hora_ordinaria * self.MULTIPLIER_EXTRA_NOCTURNA_DOMINGOFESTIVO # 2.50
-            surcharge_amount = gross_amount - (categorized_hours["horas_extras_nocturnas_domingo"] * valor_hora_ordinaria)
-            categorized_surcharge_values["horas_extras_nocturnas_domingo"] = surcharge_amount
-            total_surcharge_value_jornada += surcharge_amount
-            total_gross_value_jornada += gross_amount
-
-        # --- Cálculos para Horas en Festivo (same logic as Domingo) ---
-        # 9. Horas ordinarias diurnas en Festivo
-        if categorized_hours["horas_ordinarias_diurnas_festivo"] > 0:
-            if total_shift_hours < 22: # Menos de 22 horas
-                multiplier = self.MULTIPLIER_RECARGO_DOMINGOFESTIVO_DIURNO_BASE # 1.80
-            elif total_shift_hours >= 23: # 23 horas o más
-                multiplier = self.MULTIPLIER_RECARGO_DOMINGOFESTIVO_DIURNO_LARGA_JORNADA # 2.80
-            else: # Para 22 horas exactas, o si hay un rango entre 22 y 23
-                multiplier = self.MULTIPLIER_RECARGO_DOMINGOFESTIVO_DIURNO_BASE # O un valor por defecto
-            
-            gross_amount = categorized_hours["horas_ordinarias_diurnas_festivo"] * valor_hora_ordinaria * multiplier
-            surcharge_amount = gross_amount - (categorized_hours["horas_ordinarias_diurnas_festivo"] * valor_hora_ordinaria)
-            categorized_surcharge_values["horas_ordinarias_diurnas_festivo"] = surcharge_amount
-            total_surcharge_value_jornada += surcharge_amount
-            total_gross_value_jornada += gross_amount
-
-        # 10. Horas ordinarias nocturnas en Festivo
-        if categorized_hours["horas_ordinarias_nocturnas_festivo"] > 0:
-            if total_shift_hours >= 23:
-                multiplier = self.MULTIPLIER_RECARGO_DOMINGOFESTIVO_NOCTURNO_LARGA_JORNADA # 3.10
-            else:
-                multiplier = self.MULTIPLIER_ORDINARIA_NOCTURNA_DOMINGOFESTIVO # 2.10
-            
-            gross_amount = categorized_hours["horas_ordinarias_nocturnas_festivo"] * valor_hora_ordinaria * multiplier
-            surcharge_amount = gross_amount - (categorized_hours["horas_ordinarias_nocturnas_festivo"] * valor_hora_ordinaria)
-            categorized_surcharge_values["horas_ordinarias_nocturnas_festivo"] = surcharge_amount
-            total_surcharge_value_jornada += surcharge_amount
-            total_gross_value_jornada += gross_amount
-
-        # 11. Horas extras diurnas en Festivo
-        if categorized_hours["horas_extras_diurnas_festivo"] > 0:
-            gross_amount = categorized_hours["horas_extras_diurnas_festivo"] * valor_hora_ordinaria * self.MULTIPLIER_EXTRA_DIURNA_DOMINGOFESTIVO # 2.00
-            surcharge_amount = gross_amount - (categorized_hours["horas_extras_diurnas_festivo"] * valor_hora_ordinaria)
-            categorized_surcharge_values["horas_extras_diurnas_festivo"] = surcharge_amount
-            total_surcharge_value_jornada += surcharge_amount
-            total_gross_value_jornada += gross_amount
-
-        # 12. Horas extras nocturnas en Festivo
-        if categorized_hours["horas_extras_nocturnas_festivo"] > 0:
-            gross_amount = categorized_hours["horas_extras_nocturnas_festivo"] * valor_hora_ordinaria * self.MULTIPLIER_EXTRA_NOCTURNA_DOMINGOFESTIVO # 2.50
-            surcharge_amount = gross_amount - (categorized_hours["horas_extras_nocturnas_festivo"] * valor_hora_ordinaria)
-            categorized_surcharge_values["horas_extras_nocturnas_festivo"] = surcharge_amount
-            total_surcharge_value_jornada += surcharge_amount
-            total_gross_value_jornada += gross_amount
-
-        # Horas que generaron recargo (suma de horas en categorías con recargo)
-        horas_con_recargo_jornada = (
-            categorized_hours["horas_ordinarias_nocturnas"] +
-            categorized_hours["horas_extras_diurnas"] +
-            categorized_hours["horas_extras_nocturnas"] +
-            
-            categorized_hours["horas_ordinarias_diurnas_domingo"] +
-            categorized_hours["horas_ordinarias_nocturnas_domingo"] +
-            categorized_hours["horas_extras_diurnas_domingo"] +
-            categorized_hours["horas_extras_nocturnas_domingo"] +
-
-            categorized_hours["horas_ordinarias_diurnas_festivo"] +
-            categorized_hours["horas_ordinarias_nocturnas_festivo"] +
-            categorized_hours["horas_extras_diurnas_festivo"] +
-            categorized_hours["horas_extras_nocturnas_festivo"]
-        )
-
-        return total_gross_value_jornada, horas_con_recargo_jornada, categorized_hours, categorized_surcharge_values
-
-    def generar_reporte_empleado(self, empleado):
-        """Genera un reporte detallado para un empleado específico, incluyendo acumulados por tipo de hora y su valor de recargo."""
-        reporte_str = f"--- Reporte de Recargos para {empleado.nombre} ---\n"
-        reporte_str += f"Salario Mensual: ${empleado.salario_mensual:,.2f}\n"
-        reporte_str += f"Valor Hora Ordinaria (Sueldo/220): ${empleado.obtener_valor_hora_ordinaria():,.2f}\n"
-        reporte_str += f"Horas Diarias Estándar: {empleado.standard_daily_hours} horas\n"
-        reporte_str += "\nDetalle de Jornadas:\n"
-
-        total_general_valor_empleado = 0.0 # Acumula el valor TOTAL (base + recargos)
-        total_general_recargo_adicional_empleado = 0.0 # Acumula solo los recargos adicionales
-        total_horas_con_recargo_empleado = 0.0
+        horas_trabajadas_hoy = 0.0
         
-        # Acumuladores para el resumen de horas y valores de recargo categorizados
+        while current_time < end_time:
+            next_hour = current_time + datetime.timedelta(hours=1)
+            # Asegurarse de no exceder el end_time si la última fracción de hora es menor a 1
+            if next_hour > end_time:
+                next_hour = end_time
+            
+            duration = (next_hour - current_time).total_seconds() / 3600.0
+            
+            is_domingo_o_festivo = self.es_festivo_o_domingo(current_time.date())
+            
+            # Determinar si es horario nocturno (9 PM a 6 AM)
+            is_nocturno = (current_time.time() >= datetime.time(21, 0) or 
+                            current_time.time() < datetime.time(6, 0))
+
+            horas_trabajadas_hoy += duration
+
+            if is_domingo_o_festivo:
+                # Determinar si es domingo o festivo específico
+                if current_time.date().weekday() == 6: # Es domingo
+                    if is_nocturno:
+                        if horas_trabajadas_hoy <= empleado.standard_daily_hours:
+                            horas_categorizadas["horas_ordinarias_nocturnas_domingo"] += duration
+                        else:
+                            horas_categorizadas["horas_extras_nocturnas_domingo"] += duration
+                    else: # Diurno en domingo
+                        if horas_trabajadas_hoy <= empleado.standard_daily_hours:
+                            horas_categorizadas["horas_ordinarias_diurnas_domingo"] += duration
+                        else:
+                            horas_categorizadas["horas_extras_diurnas_domingo"] += duration
+                elif current_time.date() in self.dias_festivos: # Es festivo
+                    if is_nocturno:
+                        if horas_trabajadas_hoy <= empleado.standard_daily_hours:
+                            horas_categorizadas["horas_ordinarias_nocturnas_festivo"] += duration
+                        else:
+                            horas_categorizadas["horas_extras_nocturnas_festivo"] += duration
+                    else: # Diurno en festivo
+                        if horas_trabajadas_hoy <= empleado.standard_daily_hours:
+                            horas_categorizadas["horas_ordinarias_diurnas_festivo"] += duration
+                        else:
+                            horas_categorizadas["horas_extras_diurnas_festivo"] += duration
+            else: # Día hábil
+                if is_nocturno:
+                    if horas_trabajadas_hoy <= empleado.standard_daily_hours:
+                        horas_categorizadas["horas_ordinarias_nocturnas"] += duration
+                    else:
+                        horas_categorizadas["horas_extras_nocturnas"] += duration
+                else: # Diurno en día hábil
+                    if horas_trabajadas_hoy <= empleado.standard_daily_hours:
+                        horas_categorizadas["horas_ordinarias_diurnas"] += duration
+                    else:
+                        horas_categorizadas["horas_extras_diurnas"] += duration
+            
+            current_time = next_hour
+
+        # Calcular recargos basados en las horas categorizadas (se mantiene para cálculos internos)
+        recargo_total_jornada = 0.0
+        horas_con_recargo_jornada = 0.0
+        
+        # Horas Ordinarias Diurnas (no tienen recargo adicional, solo valor base)
+        recargo_total_jornada += horas_categorizadas["horas_ordinarias_diurnas"] * valor_hora_ordinaria
+
+        # Horas Ordinarias Nocturnas
+        if horas_categorizadas["horas_ordinarias_nocturnas"] > 0:
+            recargo_total_jornada += (horas_categorizadas["horas_ordinarias_nocturnas"] * valor_hora_ordinaria * (1 + self.ADDITIONAL_PERCENTAGE_DECIMAL_HORA_ORDINARIA_NOCTURNA))
+            horas_con_recargo_jornada += horas_categorizadas["horas_ordinarias_nocturnas"]
+
+        # Horas Extras Diurnas
+        if horas_categorizadas["horas_extras_diurnas"] > 0:
+            recargo_total_jornada += (horas_categorizadas["horas_extras_diurnas"] * valor_hora_ordinaria * self.MULTIPLIER_HORA_EXTRA_DIURNA)
+            horas_con_recargo_jornada += horas_categorizadas["horas_extras_diurnas"]
+
+        # Horas Extras Nocturnas
+        if horas_categorizadas["horas_extras_nocturnas"] > 0:
+            recargo_total_jornada += (horas_categorizadas["horas_extras_nocturnas"] * valor_hora_ordinaria * self.MULTIPLIER_HORA_EXTRA_NOCTURNA)
+            horas_con_recargo_jornada += horas_categorizadas["horas_extras_nocturnas"]
+
+        # Horas Ordinarias Diurnas Domingo/Festivo
+        if horas_categorizadas["horas_ordinarias_diurnas_domingo"] > 0:
+            recargo_total_jornada += (horas_categorizadas["horas_ordinarias_diurnas_domingo"] * valor_hora_ordinaria * (1 + self.ADDITIONAL_PERCENTAGE_DECIMAL_RECARGO_DOMINGOFESTIVO_DIURNO_BASE))
+            horas_con_recargo_jornada += horas_categorizadas["horas_ordinarias_diurnas_domingo"]
+
+        if horas_categorizadas["horas_ordinarias_diurnas_festivo"] > 0:
+            recargo_total_jornada += (horas_categorizadas["horas_ordinarias_diurnas_festivo"] * valor_hora_ordinaria * (1 + self.ADDITIONAL_PERCENTAGE_DECIMAL_RECARGO_DOMINGOFESTIVO_DIURNO_BASE))
+            horas_con_recargo_jornada += horas_categorizadas["horas_ordinarias_diurnas_festivo"]
+
+        # Horas Ordinarias Nocturnas Domingo/Festivo
+        if horas_categorizadas["horas_ordinarias_nocturnas_domingo"] > 0:
+            recargo_total_jornada += (horas_categorizadas["horas_ordinarias_nocturnas_domingo"] * valor_hora_ordinaria * (1 + self.ADDITIONAL_PERCENTAGE_DECIMAL_ORDINARIA_NOCTURNA_DOMINGOFESTIVO))
+            horas_con_recargo_jornada += horas_categorizadas["horas_ordinarias_nocturnas_domingo"]
+
+        if horas_categorizadas["horas_ordinarias_nocturnas_festivo"] > 0:
+            recargo_total_jornada += (horas_categorizadas["horas_ordinarias_nocturnas_festivo"] * valor_hora_ordinaria * (1 + self.ADDITIONAL_PERCENTAGE_DECIMAL_ORDINARIA_NOCTURNA_DOMINGOFESTIVO))
+            horas_con_recargo_jornada += horas_categorizadas["horas_ordinarias_nocturnas_festivo"]
+
+        # Horas Extras Diurnas Domingo/Festivo
+        if horas_categorizadas["horas_extras_diurnas_domingo"] > 0:
+            recargo_total_jornada += (horas_categorizadas["horas_extras_diurnas_domingo"] * valor_hora_ordinaria * self.MULTIPLIER_EXTRA_DIURNA_DOMINGOFESTIVO)
+            horas_con_recargo_jornada += horas_categorizadas["horas_extras_diurnas_domingo"]
+
+        if horas_categorizadas["horas_extras_diurnas_festivo"] > 0:
+            recargo_total_jornada += (horas_categorizadas["horas_extras_diurnas_festivo"] * valor_hora_ordinaria * self.MULTIPLIER_EXTRA_DIURNA_DOMINGOFESTIVO)
+            horas_con_recargo_jornada += horas_categorizadas["horas_extras_diurnas_festivo"]
+
+        # Horas Extras Nocturnas Domingo/Festivo
+        if horas_categorizadas["horas_extras_nocturnas_domingo"] > 0:
+            recargo_total_jornada += (horas_categorizadas["horas_extras_nocturnas_domingo"] * valor_hora_ordinaria * self.MULTIPLIER_EXTRA_NOCTURNA_DOMINGOFESTIVO)
+            horas_con_recargo_jornada += horas_categorizadas["horas_extras_nocturnas_domingo"]
+
+        if horas_categorizadas["horas_extras_nocturnas_festivo"] > 0:
+            recargo_total_jornada += (horas_categorizadas["horas_extras_nocturnas_festivo"] * valor_hora_ordinaria * self.MULTIPLIER_EXTRA_NOCTURNA_DOMINGOFESTIVO)
+            horas_con_recargo_jornada += horas_categorizadas["horas_extras_nocturnas_festivo"]
+
+        return recargo_total_jornada, horas_categorizadas, total_horas_jornada
+
+    def get_accumulated_hours_and_surcharges(self, empleado):
         acum_horas = {
             "horas_ordinarias_diurnas": 0.0,
             "horas_ordinarias_nocturnas": 0.0,
             "horas_extras_diurnas": 0.0,
             "horas_extras_nocturnas": 0.0,
-            
             "horas_ordinarias_diurnas_domingo": 0.0,
             "horas_ordinarias_nocturnas_domingo": 0.0,
             "horas_extras_diurnas_domingo": 0.0,
             "horas_extras_nocturnas_domingo": 0.0,
-
             "horas_ordinarias_diurnas_festivo": 0.0,
             "horas_ordinarias_nocturnas_festivo": 0.0,
             "horas_extras_diurnas_festivo": 0.0,
             "horas_extras_nocturnas_festivo": 0.0,
         }
-        acum_surcharge_values = { # Esto almacenará el VALOR DEL RECARGO ADICIONAL
-            "horas_ordinarias_diurnas": 0.0,
+        acum_surcharge_values = { # Almacena solo el valor del recargo adicional
             "horas_ordinarias_nocturnas": 0.0,
             "horas_extras_diurnas": 0.0,
             "horas_extras_nocturnas": 0.0,
-            
             "horas_ordinarias_diurnas_domingo": 0.0,
             "horas_ordinarias_nocturnas_domingo": 0.0,
             "horas_extras_diurnas_domingo": 0.0,
             "horas_extras_nocturnas_domingo": 0.0,
-
             "horas_ordinarias_diurnas_festivo": 0.0,
             "horas_ordinarias_nocturnas_festivo": 0.0,
             "horas_extras_diurnas_festivo": 0.0,
             "horas_extras_nocturnas_festivo": 0.0,
         }
+        total_gross_value = 0.0 # Valor bruto total (valor base + recargos)
 
-
-        if not empleado.jornadas_registradas:
-            reporte_str += "No se han registrado jornadas para este empleado.\n"
-            return reporte_str
+        valor_hora_ordinaria = empleado.obtener_valor_hora_ordinaria()
 
         for jornada in empleado.jornadas_registradas:
             fecha = jornada["fecha"]
             hora_entrada = jornada["hora_entrada"]
             hora_salida = jornada["hora_salida"]
 
-            total_gross_value_jornada, horas_recargo, categorized_hours, categorized_surcharge_values = self.calcular_recargos_jornada(empleado, jornada)
+            # Calcular duración total de la jornada en horas
+            if hora_salida <= hora_entrada:
+                delta_tiempo = (datetime.datetime.combine(fecha + datetime.timedelta(days=1), hora_salida) - 
+                                datetime.datetime.combine(fecha, hora_entrada))
+            else:
+                delta_tiempo = datetime.datetime.combine(fecha, hora_salida) - datetime.datetime.combine(fecha, hora_entrada)
             
-            reporte_str += f" Jornada del {fecha.strftime('%Y-%m-%d')} ({hora_entrada.strftime('%I:%M %p')} - {hora_salida.strftime('%I:%M %p')}):\n"
+            total_horas_jornada = delta_tiempo.total_seconds() / 3600.0
+
+            # Categorizar horas para esta jornada
+            current_time = datetime.datetime.combine(fecha, hora_entrada)
+            end_time = datetime.datetime.combine(fecha, hora_salida)
+            if hora_salida <= hora_entrada:
+                end_time = datetime.datetime.combine(fecha + datetime.timedelta(days=1), hora_salida)
+
+            horas_trabajadas_en_dia = 0.0 # Para controlar las horas estándar diarias
+
+            temp_jornada_horas = {key: 0.0 for key in acum_horas.keys()} # Horas para esta jornada
             
-            # Imprimir horas y su valor de recargo
-            if categorized_hours["horas_ordinarias_diurnas"] > 0:
-                base_value_for_ord_diur = categorized_hours['horas_ordinarias_diurnas'] * empleado.obtener_valor_hora_ordinaria()
-                reporte_str += f"   Horas Ordinarias Diurnas: {categorized_hours['horas_ordinarias_diurnas']:.2f}h (Valor Base: ${base_value_for_ord_diur:,.2f})\n"
-            if categorized_hours["horas_ordinarias_nocturnas"] > 0:
-                reporte_str += f"   Horas Ordinarias Nocturnas: {categorized_hours['horas_ordinarias_nocturnas']:.2f}h (Recargo: ${categorized_surcharge_values['horas_ordinarias_nocturnas']:,.2f})\n"
-            if categorized_hours["horas_extras_diurnas"] > 0:
-                reporte_str += f"   Horas Extras Diurnas: {categorized_hours['horas_extras_diurnas']:.2f}h (Recargo: ${categorized_surcharge_values['horas_extras_diurnas']:,.2f})\n"
-            if categorized_hours["horas_extras_nocturnas"] > 0:
-                reporte_str += f"   Horas Extras Nocturnas: {categorized_hours['horas_extras_nocturnas']:.2f}h (Recargo: ${categorized_surcharge_values['horas_extras_nocturnas']:,.2f})\n"
-            
-            # Reporte para Domingo
-            if categorized_hours["horas_ordinarias_diurnas_domingo"] > 0:
-                reporte_str += f"   Horas Ordinarias Diurnas Domingo: {categorized_hours['horas_ordinarias_diurnas_domingo']:.2f}h (Recargo: ${categorized_surcharge_values['horas_ordinarias_diurnas_domingo']:,.2f})\n"
-            if categorized_hours["horas_ordinarias_nocturnas_domingo"] > 0:
-                reporte_str += f"   Horas Ordinarias Nocturnas Domingo: {categorized_hours['horas_ordinarias_nocturnas_domingo']:.2f}h (Recargo: ${categorized_surcharge_values['horas_ordinarias_nocturnas_domingo']:,.2f})\n"
-            if categorized_hours["horas_extras_diurnas_domingo"] > 0:
-                reporte_str += f"   Horas Extras Diurnas Domingo: {categorized_hours['horas_extras_diurnas_domingo']:.2f}h (Recargo: ${categorized_surcharge_values['horas_extras_diurnas_domingo']:,.2f})\n"
-            if categorized_hours["horas_extras_nocturnas_domingo"] > 0:
-                reporte_str += f"   Horas Extras Nocturnas Domingo: {categorized_hours['horas_extras_nocturnas_domingo']:.2f}h (Recargo: ${categorized_surcharge_values['horas_extras_nocturnas_domingo']:,.2f})\n"
+            while current_time < end_time:
+                next_hour = current_time + datetime.timedelta(hours=1)
+                if next_hour > end_time:
+                    next_hour = end_time
+                
+                duration = (next_hour - current_time).total_seconds() / 3600.0
+                
+                is_domingo_o_festivo = self.es_festivo_o_domingo(current_time.date())
+                
+                is_nocturno = (current_time.time() >= datetime.time(21, 0) or 
+                                current_time.time() < datetime.time(6, 0))
 
-            # Reporte para Festivo
-            if categorized_hours["horas_ordinarias_diurnas_festivo"] > 0:
-                reporte_str += f"   Horas Ordinarias Diurnas Festivo: {categorized_hours['horas_ordinarias_diurnas_festivo']:.2f}h (Recargo: ${categorized_surcharge_values['horas_ordinarias_diurnas_festivo']:,.2f})\n"
-            if categorized_hours["horas_ordinarias_nocturnas_festivo"] > 0:
-                reporte_str += f"   Horas Ordinarias Nocturnas Festivo: {categorized_hours['horas_ordinarias_nocturnas_festivo']:.2f}h (Recargo: ${categorized_surcharge_values['horas_ordinarias_nocturnas_festivo']:,.2f})\n"
-            if categorized_hours["horas_extras_diurnas_festivo"] > 0:
-                reporte_str += f"   Horas Extras Diurnas Festivo: {categorized_hours['horas_extras_diurnas_festivo']:.2f}h (Recargo: ${categorized_surcharge_values['horas_extras_diurnas_festivo']:,.2f})\n"
-            if categorized_hours["horas_extras_nocturnas_festivo"] > 0:
-                reporte_str += f"   Horas Extras Nocturnas Festivo: {categorized_hours['horas_extras_nocturnas_festivo']:.2f}h (Recargo: ${categorized_surcharge_values['horas_extras_nocturnas_festivo']:,.2f})\n"
-            
-            reporte_str += f"   Valor Total de la Jornada: ${total_gross_value_jornada:,.2f}\n"
-            reporte_str += f"   Horas que generaron recargo en esta jornada: {horas_recargo:.2f}h\n"
-            reporte_str += "-----------------------------------------------------\n"
+                horas_trabajadas_en_dia += duration
 
-            total_general_valor_empleado += total_gross_value_jornada 
-            total_general_recargo_adicional_empleado += sum(categorized_surcharge_values.values()) # Sumar solo los recargos adicionales
-            total_horas_con_recargo_empleado += horas_recargo
+                if is_domingo_o_festivo:
+                    if current_time.date().weekday() == 6: # Es domingo
+                        if is_nocturno:
+                            if horas_trabajadas_en_dia <= empleado.standard_daily_hours:
+                                temp_jornada_horas["horas_ordinarias_nocturnas_domingo"] += duration
+                            else:
+                                temp_jornada_horas["horas_extras_nocturnas_domingo"] += duration
+                        else: # Diurno en domingo
+                            if horas_trabajadas_en_dia <= empleado.standard_daily_hours:
+                                temp_jornada_horas["horas_ordinarias_diurnas_domingo"] += duration
+                            else:
+                                temp_jornada_horas["horas_extras_diurnas_domingo"] += duration
+                    elif current_time.date() in self.dias_festivos: # Es festivo
+                        if is_nocturno:
+                            if horas_trabajadas_en_dia <= empleado.standard_daily_hours:
+                                temp_jornada_horas["horas_ordinarias_nocturnas_festivo"] += duration
+                            else:
+                                temp_jornada_horas["horas_extras_nocturnas_festivo"] += duration
+                        else: # Diurno en festivo
+                            if horas_trabajadas_en_dia <= empleado.standard_daily_hours:
+                                temp_jornada_horas["horas_ordinarias_diurnas_festivo"] += duration
+                            else:
+                                temp_jornada_horas["horas_extras_diurnas_festivo"] += duration
+                else: # Día hábil
+                    if is_nocturno:
+                        if horas_trabajadas_en_dia <= empleado.standard_daily_hours:
+                            temp_jornada_horas["horas_ordinarias_nocturnas"] += duration
+                        else:
+                            temp_jornada_horas["horas_extras_nocturnas"] += duration
+                    else: # Diurno en día hábil
+                        if horas_trabajadas_en_dia <= empleado.standard_daily_hours:
+                            temp_jornada_horas["horas_ordinarias_diurnas"] += duration
+                        else:
+                            temp_jornada_horas["horas_extras_diurnas"] += duration
+                
+                current_time = next_hour
 
-            for key, value in categorized_hours.items():
-                acum_horas[key] += value
-            for key, value in categorized_surcharge_values.items():
-                acum_surcharge_values[key] += value
-
-        reporte_str += f"\n--- Resumen de Horas y Recargos Acumulados para {empleado.nombre} ---\n"
-        # Mostrar el valor base de las horas ordinarias diurnas acumuladas
-        if acum_horas["horas_ordinarias_diurnas"] > 0:
-            base_value_for_total_ord_diur = acum_horas['horas_ordinarias_diurnas'] * empleado.obtener_valor_hora_ordinaria()
-            reporte_str += f"Total Horas Ordinarias Diurnas: {acum_horas['horas_ordinarias_diurnas']:.2f}h (Valor Base: ${base_value_for_total_ord_diur:,.2f})\n"
-        if acum_horas["horas_ordinarias_nocturnas"] > 0:
-            reporte_str += f"Total Horas Ordinarias Nocturnas: {acum_horas['horas_ordinarias_nocturnas']:.2f}h (Recargo: ${acum_surcharge_values['horas_ordinarias_nocturnas']:,.2f})\n"
-        if acum_horas["horas_extras_diurnas"] > 0:
-            reporte_str += f"Total Horas Extras Diurnas: {acum_horas['horas_extras_diurnas']:.2f}h (Recargo: ${acum_surcharge_values['horas_extras_diurnas']:,.2f})\n"
-        if acum_horas["horas_extras_nocturnas"] > 0:
-            reporte_str += f"Total Horas Extras Nocturnas: {acum_horas['horas_extras_nocturnas']:.2f}h (Recargo: ${acum_surcharge_values['horas_extras_nocturnas']:,.2f})\n"
+            # Acumular horas y calcular recargos para esta jornada
+            for key, hours in temp_jornada_horas.items():
+                if hours > 0:
+                    acum_horas[key] += hours
+                    
+                    # Calcular el valor del recargo adicional para cada tipo de hora
+                    if key == "horas_ordinarias_diurnas":
+                        # Estas horas no tienen recargo adicional, solo contribuyen al valor base total
+                        total_gross_value += hours * valor_hora_ordinaria
+                    elif key == "horas_ordinarias_nocturnas":
+                        surcharge_value = hours * valor_hora_ordinaria * self.ADDITIONAL_PERCENTAGE_DECIMAL_HORA_ORDINARIA_NOCTURNA
+                        acum_surcharge_values[key] += surcharge_value
+                        total_gross_value += (hours * valor_hora_ordinaria) + surcharge_value
+                    elif key == "horas_extras_diurnas":
+                        surcharge_value = hours * valor_hora_ordinaria * (self.MULTIPLIER_HORA_EXTRA_DIURNA - 1.0)
+                        acum_surcharge_values[key] += surcharge_value
+                        total_gross_value += hours * valor_hora_ordinaria * self.MULTIPLIER_HORA_EXTRA_DIURNA
+                    elif key == "horas_extras_nocturnas":
+                        surcharge_value = hours * valor_hora_ordinaria * (self.MULTIPLIER_HORA_EXTRA_NOCTURNA - 1.0)
+                        acum_surcharge_values[key] += surcharge_value
+                        total_gross_value += hours * valor_hora_ordinaria * self.MULTIPLIER_HORA_EXTRA_NOCTURNA
+                    elif key in ["horas_ordinarias_diurnas_domingo", "horas_ordinarias_diurnas_festivo"]:
+                        surcharge_value = hours * valor_hora_ordinaria * self.ADDITIONAL_PERCENTAGE_DECIMAL_RECARGO_DOMINGOFESTIVO_DIURNO_BASE
+                        acum_surcharge_values[key] += surcharge_value
+                        total_gross_value += (hours * valor_hora_ordinaria) + surcharge_value
+                    elif key in ["horas_ordinarias_nocturnas_domingo", "horas_ordinarias_nocturnas_festivo"]:
+                        surcharge_value = hours * valor_hora_ordinaria * self.ADDITIONAL_PERCENTAGE_DECIMAL_ORDINARIA_NOCTURNA_DOMINGOFESTIVO
+                        acum_surcharge_values[key] += surcharge_value
+                        total_gross_value += (hours * valor_hora_ordinaria) + surcharge_value
+                    elif key in ["horas_extras_diurnas_domingo", "horas_extras_diurnas_festivo"]:
+                        surcharge_value = hours * valor_hora_ordinaria * (self.MULTIPLIER_EXTRA_DIURNA_DOMINGOFESTIVO - 1.0)
+                        acum_surcharge_values[key] += surcharge_value
+                        total_gross_value += hours * valor_hora_ordinaria * self.MULTIPLIER_EXTRA_DIURNA_DOMINGOFESTIVO
+                    elif key in ["horas_extras_nocturnas_domingo", "horas_extras_nocturnas_festivo"]:
+                        surcharge_value = hours * valor_hora_ordinaria * (self.MULTIPLIER_EXTRA_NOCTURNA_DOMINGOFESTIVO - 1.0)
+                        acum_surcharge_values[key] += surcharge_value
+                        total_gross_value += hours * valor_hora_ordinaria * self.MULTIPLIER_EXTRA_NOCTURNA_DOMINGOFESTIVO
         
-        # Resumen para Domingo
-        if acum_horas["horas_ordinarias_diurnas_domingo"] > 0:
-            reporte_str += f"Total Horas Ordinarias Diurnas Domingo: {acum_horas['horas_ordinarias_diurnas_domingo']:.2f}h (Recargo: ${acum_surcharge_values['horas_ordinarias_diurnas_domingo']:,.2f})\n"
-        if acum_horas["horas_ordinarias_nocturnas_domingo"] > 0:
-            reporte_str += f"Total Horas Ordinarias Nocturnas Domingo: {acum_horas['horas_ordinarias_nocturnas_domingo']:.2f}h (Recargo: ${acum_surcharge_values['horas_ordinarias_nocturnas_domingo']:,.2f})\n"
-        if acum_horas["horas_extras_diurnas_domingo"] > 0:
-            reporte_str += f"Total Horas Extras Diurnas Domingo: {acum_horas['horas_extras_diurnas_domingo']:.2f}h (Recargo: ${acum_surcharge_values['horas_extras_diurnas_domingo']:,.2f})\n"
-        if acum_horas["horas_extras_nocturnas_domingo"] > 0:
-            reporte_str += f"Total Horas Extras Nocturnas Domingo: {acum_horas['horas_extras_nocturnas_domingo']:.2f}h (Recargo: ${acum_surcharge_values['horas_extras_nocturnas_domingo']:,.2f})\n"
+        return acum_horas, acum_surcharge_values, total_gross_value
 
-        # Resumen para Festivo
-        if acum_horas["horas_ordinarias_diurnas_festivo"] > 0:
-            reporte_str += f"Total Horas Ordinarias Diurnas Festivo: {acum_horas['horas_ordinarias_diurnas_festivo']:.2f}h (Recargo: ${acum_surcharge_values['horas_ordinarias_diurnas_festivo']:,.2f})\n"
-        if acum_horas["horas_ordinarias_nocturnas_festivo"] > 0:
-            reporte_str += f"Total Horas Ordinarias Nocturnas Festivo: {acum_horas['horas_ordinarias_nocturnas_festivo']:.2f}h (Recargo: ${acum_surcharge_values['horas_ordinarias_nocturnas_festivo']:,.2f})\n"
-        if acum_horas["horas_extras_diurnas_festivo"] > 0:
-            reporte_str += f"Total Horas Extras Diurnas Festivo: {acum_horas['horas_extras_diurnas_festivo']:.2f}h (Recargo: ${acum_surcharge_values['horas_extras_diurnas_festivo']:,.2f})\n"
-        if acum_horas["horas_extras_nocturnas_festivo"] > 0:
-            reporte_str += f"Total Horas Extras Nocturnas Festivo: {acum_horas['horas_extras_nocturnas_festivo']:.2f}h (Recargo: ${acum_surcharge_values['horas_extras_nocturnas_festivo']:,.2f})\n"
+    def generar_reporte_empleado(self, empleado):
+        reporte_str = f"--- Reporte de Horas para {empleado.nombre} ---\n"
+        reporte_str += f"Horas Diarias Estándar: {empleado.standard_daily_hours} horas\n\n"
+        reporte_str += "Detalle de Jornadas:\n"
+
+        total_horas_con_recargo_acumulado = 0.0
+        total_horas_ordinarias_diurnas_acumulado = 0.0
+
+        if not empleado.jornadas_registradas:
+            reporte_str += "  No hay jornadas registradas para este empleado.\n"
+        else:
+            for i, jornada in enumerate(empleado.jornadas_registradas):
+                # No necesitamos el valor total de recargo ni los valores de recargo por categoría aquí
+                _, horas_categorizadas, total_horas_jornada = self.calcular_recargos_jornada(empleado, jornada)
+                
+                reporte_str += f"\nJornada {i+1} - Fecha: {jornada['fecha'].strftime('%Y-%m-%d')} ({jornada['hora_entrada'].strftime('%I:%M %p')} - {jornada['hora_salida'].strftime('%I:%M %p')})\n"
+                reporte_str += f"  Total Horas Trabajadas: {total_horas_jornada:.2f}h\n"
+                reporte_str += "  Horas Categorizadas:\n"
+
+                jornada_horas_con_recargo = 0.0
+
+                # Sección para horas regulares
+                regular_keys = [
+                    "horas_ordinarias_diurnas",
+                    "horas_ordinarias_nocturnas",
+                    "horas_extras_diurnas",
+                    "horas_extras_nocturnas",
+                ]
+                for tipo_hora in regular_keys:
+                    horas = horas_categorizadas.get(tipo_hora, 0.0)
+                    if horas > 0:
+                        reporte_str += f"    - {tipo_hora.replace('_', ' ').title()}: {horas:.2f}h\n"
+                        if tipo_hora == "horas_ordinarias_diurnas":
+                            total_horas_ordinarias_diurnas_acumulado += horas
+                        else:
+                            jornada_horas_con_recargo += horas
+
+                # Sección para horas de Domingo
+                domingo_keys = [
+                    "horas_ordinarias_diurnas_domingo",
+                    "horas_ordinarias_nocturnas_domingo",
+                    "horas_extras_diurnas_domingo",
+                    "horas_extras_nocturnas_domingo",
+                ]
+                for tipo_hora in domingo_keys:
+                    horas = horas_categorizadas.get(tipo_hora, 0.0)
+                    if horas > 0:
+                        reporte_str += f"    - {tipo_hora.replace('_', ' ').title()}: {horas:.2f}h\n"
+                        jornada_horas_con_recargo += horas
+
+                # Sección para horas de Festivo
+                festivo_keys = [
+                    "horas_ordinarias_diurnas_festivo",
+                    "horas_ordinarias_nocturnas_festivo",
+                    "horas_extras_diurnas_festivo",
+                    "horas_extras_nocturnas_festivo",
+                ]
+                for tipo_hora in festivo_keys:
+                    horas = horas_categorizadas.get(tipo_hora, 0.0)
+                    if horas > 0:
+                        reporte_str += f"    - {tipo_hora.replace('_', ' ').title()}: {horas:.2f}h\n"
+                        jornada_horas_con_recargo += horas
 
 
-        reporte_str += f"\nTotal Valor Bruto Acumulado para {empleado.nombre}: ${total_general_valor_empleado:,.2f}\n"
-        reporte_str += f"Total Recargos Adicionales para {empleado.nombre}: ${total_general_recargo_adicional_empleado:,.2f}\n"
-        reporte_str += f"Total Horas con Recargo para {empleado.nombre}: {total_horas_con_recargo_empleado:.2f} horas\n"
+                reporte_str += f"  Horas con Recargo en Jornada: {jornada_horas_con_recargo:.2f}h\n"
+                total_horas_con_recargo_acumulado += jornada_horas_con_recargo
+                total_horas_ordinarias_diurnas_acumulado += horas_categorizadas["horas_ordinarias_diurnas"] # Asegurarse de sumar estas también para el total general
+
+        total_todas_las_horas = total_horas_con_recargo_acumulado + total_horas_ordinarias_diurnas_acumulado
+
+        reporte_str += "\n--- Resumen General ---\n"
+        reporte_str += f"Total Horas Acumuladas con Recargo: {total_horas_con_recargo_acumulado:.2f}h\n"
+        reporte_str += f"Total de Todas las Horas Acumuladas (Recargo + Ordinarias Diurnas): {total_todas_las_horas:.2f}h\n"
         reporte_str += "-----------------------------------------------------\n"
         return reporte_str
 
     def generar_reporte_consolidado(self, lista_empleados, periodo_inicio=None, periodo_fin=None):
-        """
-        Genera un reporte consolidado de recargos para todos los empleados
-        en un período dado.
-        """
-        reporte_str = "--- Reporte Consolidado de Recargos ---\n"
+        reporte_str = "--- Reporte Consolidado de Horas ---\n"
         if periodo_inicio and periodo_fin:
             reporte_str += f"Período: {periodo_inicio.strftime('%Y-%m-%d')} a {periodo_fin.strftime('%Y-%m-%d')}\n"
         elif periodo_inicio:
             reporte_str += f"Período: Desde {periodo_inicio.strftime('%Y-%m-%d')}\n"
         elif periodo_fin:
             reporte_str += f"Período: Hasta {periodo_fin.strftime('%Y-%m-%d')}\n"
-        reporte_str += "\n"
+        else:
+            reporte_str += "Período: Todas las jornadas registradas\n"
+        reporte_str += "----------------------------------------\n\n"
 
-        total_general_valor = 0.0 # Acumula el valor TOTAL (base + recargos)
-        total_general_recargo_adicional = 0.0 # Acumula solo los recargos adicionales
         total_general_horas_con_recargo = 0.0
-        
-        acum_horas_general = {
-            "horas_ordinarias_diurnas": 0.0,
-            "horas_ordinarias_nocturnas": 0.0,
-            "horas_extras_diurnas": 0.0,
-            "horas_extras_nocturnas": 0.0,
-            
-            "horas_ordinarias_diurnas_domingo": 0.0,
-            "horas_ordinarias_nocturnas_domingo": 0.0,
-            "horas_extras_diurnas_domingo": 0.0,
-            "horas_extras_nocturnas_domingo": 0.0,
-
-            "horas_ordinarias_diurnas_festivo": 0.0,
-            "horas_ordinarias_nocturnas_festivo": 0.0,
-            "horas_extras_diurnas_festivo": 0.0,
-            "horas_extras_nocturnas_festivo": 0.0,
-        }
-        acum_surcharge_values_general = { # Esto almacenará el VALOR DEL RECARGO ADICIONAL
-            "horas_ordinarias_diurnas": 0.0,
-            "horas_ordinarias_nocturnas": 0.0,
-            "horas_extras_diurnas": 0.0,
-            "horas_extras_nocturnas": 0.0,
-            
-            "horas_ordinarias_diurnas_domingo": 0.0,
-            "horas_ordinarias_nocturnas_domingo": 0.0,
-            "horas_extras_diurnas_domingo": 0.0,
-            "horas_extras_nocturnas_domingo": 0.0,
-
-            "horas_ordinarias_diurnas_festivo": 0.0,
-            "horas_ordinarias_nocturnas_festivo": 0.0,
-            "horas_extras_diurnas_festivo": 0.0,
-            "horas_extras_nocturnas_festivo": 0.0,
-        }
+        total_general_todas_las_horas = 0.0
 
         if not lista_empleados:
-            return "No hay empleados registrados para generar un reporte consolidado."
+            reporte_str += "No hay empleados registrados.\n"
+            return reporte_str
 
         for empleado in lista_empleados:
-            valor_empleado_periodo = 0.0
-            recargo_adicional_empleado_periodo = 0.0
-            horas_empleado_periodo = 0.0
+            jornadas_filtradas = []
+            if periodo_inicio and periodo_fin:
+                for jornada in empleado.jornadas_registradas:
+                    if periodo_inicio <= jornada["fecha"] <= periodo_fin:
+                        jornadas_filtradas.append(jornada)
+            elif periodo_inicio: # Solo fecha de inicio
+                for jornada in empleado.jornadas_registradas:
+                    if jornada["fecha"] >= periodo_inicio:
+                        jornadas_filtradas.append(jornada)
+            elif periodo_fin: # Solo fecha de fin
+                for jornada in empleado.jornadas_registradas:
+                    if jornada["fecha"] <= periodo_fin:
+                        jornadas_filtradas.append(jornada)
+            else: # Sin filtro de período
+                jornadas_filtradas = empleado.jornadas_registradas
+
+            if not jornadas_filtradas:
+                reporte_str += f"Empleado: {empleado.nombre} - No hay jornadas en el período seleccionado.\n\n"
+                continue
+
+            # Crear un empleado temporal con solo las jornadas filtradas para el cálculo
+            temp_empleado = Empleado(empleado.nombre, empleado.salario_mensual, empleado.standard_daily_hours, empleado.tipo_contrato)
+            temp_empleado.jornadas_registradas = jornadas_filtradas
+
+            acum_horas, _, _ = self.get_accumulated_hours_and_surcharges(temp_empleado) # No necesitamos los valores de recargo ni el total bruto aquí
+
+            reporte_str += f"--- Empleado: {empleado.nombre} ---\n"
+            reporte_str += f"  Horas Diarias Estándar: {empleado.standard_daily_hours} horas\n"
+            reporte_str += "  Acumulados por Categoría:\n"
+
+            empleado_horas_con_recargo = 0.0
+            empleado_horas_ordinarias_diurnas = 0.0
+
+            display_names = {
+                "horas_ordinarias_diurnas": "Horas Ordinarias Diurnas",
+                "horas_ordinarias_nocturnas": "Horas Ordinarias Nocturnas",
+                "horas_extras_diurnas": "Horas Extras Diurnas",
+                "horas_extras_nocturnas": "Horas Extras Nocturnas",
+                "horas_ordinarias_diurnas_domingo": "Horas Ordinarias Diurnas Domingo",
+                "horas_ordinarias_nocturnas_domingo": "Horas Ordinarias Nocturnas Domingo",
+                "horas_extras_diurnas_domingo": "Horas Extras Diurnas Domingo",
+                "horas_extras_nocturnas_domingo": "Horas Extras Nocturnas Domingo",
+                "horas_ordinarias_diurnas_festivo": "Horas Ordinarias Diurnas Festivo",
+                "horas_ordinarias_nocturnas_festivo": "Horas Ordinarias Nocturnas Festivo",
+                "horas_extras_diurnas_festivo": "Horas Extras Diurnas Festivo",
+                "horas_extras_nocturnas_festivo": "Horas Extras Nocturnas Festivo",
+            }
+
+            # Sección para horas regulares
+            regular_keys = [
+                "horas_ordinarias_diurnas",
+                "horas_ordinarias_nocturnas",
+                "horas_extras_diurnas",
+                "horas_extras_nocturnas",
+            ]
+            for key in regular_keys:
+                hours = acum_horas.get(key, 0.0)
+                if hours > 0:
+                    reporte_str += f"    - {display_names[key]}: {hours:.2f}h\n"
+                    if key == "horas_ordinarias_diurnas":
+                        empleado_horas_ordinarias_diurnas += hours
+                    else:
+                        empleado_horas_con_recargo += hours
             
-            acum_horas_empleado_periodo = {
-                "horas_ordinarias_diurnas": 0.0,
-                "horas_ordinarias_nocturnas": 0.0,
-                "horas_extras_diurnas": 0.0,
-                "horas_extras_nocturnas": 0.0,
-                
-                "horas_ordinarias_diurnas_domingo": 0.0,
-                "horas_ordinarias_nocturnas_domingo": 0.0,
-                "horas_extras_diurnas_domingo": 0.0,
-                "horas_extras_nocturnas_domingo": 0.0,
+            # Sección para horas de Domingo
+            domingo_keys = [
+                "horas_ordinarias_diurnas_domingo",
+                "horas_ordinarias_nocturnas_domingo",
+                "horas_extras_diurnas_domingo",
+                "horas_extras_nocturnas_domingo",
+            ]
+            for key in domingo_keys:
+                hours = acum_horas.get(key, 0.0)
+                if hours > 0:
+                    reporte_str += f"    - {display_names[key]}: {hours:.2f}h\n"
+                    empleado_horas_con_recargo += hours
 
-                "horas_ordinarias_diurnas_festivo": 0.0,
-                "horas_ordinarias_nocturnas_festivo": 0.0,
-                "horas_extras_diurnas_festivo": 0.0,
-                "horas_extras_nocturnas_festivo": 0.0,
-            }
-            acum_surcharge_values_empleado_periodo = {
-                "horas_ordinarias_diurnas": 0.0,
-                "horas_ordinarias_nocturnas": 0.0,
-                "horas_extras_diurnas": 0.0,
-                "horas_extras_nocturnas": 0.0,
-                
-                "horas_ordinarias_diurnas_domingo": 0.0,
-                "horas_ordinarias_nocturnas_domingo": 0.0,
-                "horas_extras_diurnas_domingo": 0.0,
-                "horas_extras_nocturnas_domingo": 0.0,
+            # Sección para horas de Festivo
+            festivo_keys = [
+                "horas_ordinarias_diurnas_festivo",
+                "horas_ordinarias_nocturnas_festivo",
+                "horas_extras_diurnas_festivo",
+                "horas_extras_nocturnas_festivo",
+            ]
+            for key in festivo_keys:
+                hours = acum_horas.get(key, 0.0)
+                if hours > 0:
+                    reporte_str += f"    - {display_names[key]}: {hours:.2f}h\n"
+                    empleado_horas_con_recargo += hours
 
-                "horas_ordinarias_diurnas_festivo": 0.0,
-                "horas_ordinarias_nocturnas_festivo": 0.0,
-                "horas_extras_diurnas_festivo": 0.0,
-                "horas_extras_nocturnas_festivo": 0.0,
-            }
 
-            for jornada in empleado.jornadas_registradas:
-                fecha_jornada = jornada["fecha"]
-                if (periodo_inicio is None or fecha_jornada >= periodo_inicio) and \
-                   (periodo_fin is None or fecha_jornada <= periodo_fin):
-                    
-                    total_gross_value_jornada, horas_con_recargo, categorized_hours, categorized_surcharge_values = self.calcular_recargos_jornada(empleado, jornada)
-                    valor_empleado_periodo += total_gross_value_jornada
-                    recargo_adicional_empleado_periodo += sum(categorized_surcharge_values.values())
-                    horas_empleado_periodo += horas_con_recargo
-                    
-                    for key, value in categorized_hours.items():
-                        acum_horas_empleado_periodo[key] += value
-                    for key, value in categorized_surcharge_values.items():
-                        acum_surcharge_values_empleado_periodo[key] += value
+            total_empleado_horas = empleado_horas_con_recargo + empleado_horas_ordinarias_diurnas
 
-            if valor_empleado_periodo > 0 or any(v > 0 for v in acum_horas_empleado_periodo.values()):
-                reporte_str += f" Empleado: {empleado.nombre} (Salario: ${empleado.salario_mensual:,.2f})\n"
-                # Mostrar el valor base de las horas ordinarias diurnas acumuladas
-                if acum_horas_empleado_periodo["horas_ordinarias_diurnas"] > 0:
-                    base_value_for_period_ord_diur = acum_horas_empleado_periodo['horas_ordinarias_diurnas'] * empleado.obtener_valor_hora_ordinaria()
-                    reporte_str += f"   Horas Ordinarias Diurnas: {acum_horas_empleado_periodo['horas_ordinarias_diurnas']:.2f}h (Valor Base: ${base_value_for_period_ord_diur:,.2f})\n"
-                if acum_horas_empleado_periodo["horas_ordinarias_nocturnas"] > 0:
-                    reporte_str += f"   Horas Ordinarias Nocturnas: {acum_horas_empleado_periodo['horas_ordinarias_nocturnas']:.2f}h (Recargo: ${acum_surcharge_values_empleado_periodo['horas_ordinarias_nocturnas']:,.2f})\n"
-                if acum_horas_empleado_periodo["horas_extras_diurnas"] > 0:
-                    reporte_str += f"   Horas Extras Diurnas: {acum_horas_empleado_periodo['horas_extras_diurnas']:.2f}h (Recargo: ${acum_surcharge_values_empleado_periodo['horas_extras_diurnas']:,.2f})\n"
-                if acum_horas_empleado_periodo["horas_extras_nocturnas"] > 0:
-                    reporte_str += f"   Horas Extras Nocturnas: {acum_horas_empleado_periodo['horas_extras_nocturnas']:.2f}h (Recargo: ${acum_surcharge_values_empleado_periodo['horas_extras_nocturnas']:,.2f})\n"
-                
-                # Reporte para Domingo
-                if acum_horas_empleado_periodo["horas_ordinarias_diurnas_domingo"] > 0:
-                    reporte_str += f"   Horas Ordinarias Diurnas Domingo: {acum_horas_empleado_periodo['horas_ordinarias_diurnas_domingo']:.2f}h (Recargo: ${acum_surcharge_values_empleado_periodo['horas_ordinarias_diurnas_domingo']:,.2f})\n"
-                if acum_horas_empleado_periodo["horas_ordinarias_nocturnas_domingo"] > 0:
-                    reporte_str += f"   Horas Ordinarias Nocturnas Domingo: {acum_horas_empleado_periodo['horas_ordinarias_nocturnas_domingo']:.2f}h (Recargo: ${acum_surcharge_values_empleado_periodo['horas_ordinarias_nocturnas_domingo']:,.2f})\n"
-                if acum_horas_empleado_periodo["horas_extras_diurnas_domingo"] > 0:
-                    reporte_str += f"   Horas Extras Diurnas Domingo: {acum_horas_empleado_periodo['horas_extras_diurnas_domingo']:.2f}h (Recargo: ${acum_surcharge_values_empleado_periodo['horas_extras_diurnas_domingo']:,.2f})\n"
-                if acum_horas_empleado_periodo["horas_extras_nocturnas_domingo"] > 0:
-                    reporte_str += f"   Horas Extras Nocturnas Domingo: {acum_horas_empleado_periodo['horas_extras_nocturnas_domingo']:.2f}h (Recargo: ${acum_surcharge_values_empleado_periodo['horas_extras_nocturnas_domingo']:,.2f})\n"
+            reporte_str += f"  Total Horas Acumuladas con Recargo para {empleado.nombre}: {empleado_horas_con_recargo:.2f}h\n"
+            reporte_str += f"  Total de Todas las Horas Acumuladas para {empleado.nombre}: {total_empleado_horas:.2f}h\n\n"
+            
+            total_general_horas_con_recargo += empleado_horas_con_recargo
+            total_general_todas_las_horas += total_empleado_horas
 
-                # Reporte para Festivo
-                if acum_horas_empleado_periodo["horas_ordinarias_diurnas_festivo"] > 0:
-                    reporte_str += f"   Horas Ordinarias Diurnas Festivo: {acum_horas_empleado_periodo['horas_ordinarias_diurnas_festivo']:.2f}h (Recargo: ${acum_surcharge_values_empleado_periodo['horas_ordinarias_diurnas_festivo']:,.2f})\n"
-                if acum_horas_empleado_periodo["horas_ordinarias_nocturnas_festivo"] > 0:
-                    reporte_str += f"   Horas Ordinarias Nocturnas Festivo: {acum_horas_empleado_periodo['horas_ordinarias_nocturnas_festivo']:.2f}h (Recargo: ${acum_surcharge_values_empleado_periodo['horas_ordinarias_nocturnas_festivo']:,.2f})\n"
-                if acum_horas_empleado_periodo["horas_extras_diurnas_festivo"] > 0:
-                    reporte_str += f"   Horas Extras Diurnas Festivo: {acum_horas_empleado_periodo['horas_extras_diurnas_festivo']:.2f}h (Recargo: ${acum_surcharge_values_empleado_periodo['horas_extras_diurnas_festivo']:,.2f})\n"
-                if acum_horas_empleado_periodo["horas_extras_nocturnas_festivo"] > 0:
-                    reporte_str += f"   Horas Extras Nocturnas Festivo: {acum_horas_empleado_periodo['horas_extras_nocturnas_festivo']:.2f}h (Recargo: ${acum_surcharge_values_empleado_periodo['horas_extras_nocturnas_festivo']:,.2f})\n"
+        reporte_str += "--- Resumen General Consolidado ---\n"
+        reporte_str += f"Total General de Horas Acumuladas con Recargo: {total_general_horas_con_recargo:.2f}h\n"
+        reporte_str += f"Total General de Todas las Horas Acumuladas (Recargo + Ordinarias): {total_general_todas_las_horas:.2f}h\n"
+        reporte_str += "-----------------------------------------------------\n"
 
-                reporte_str += f"   Valor Bruto en el período: ${valor_empleado_periodo:,.2f}\n"
-                reporte_str += f"   Recargos Adicionales en el período: ${recargo_adicional_empleado_periodo:,.2f}\n"
-                reporte_str += f"   Horas con recargo en el período: {horas_empleado_periodo:.2f} horas\n\n"
-                
-                total_general_valor += valor_empleado_periodo
-                total_general_recargo_adicional += recargo_adicional_empleado_periodo
-                total_general_horas_con_recargo += horas_empleado_periodo
-                
-                for key, value in acum_horas_empleado_periodo.items():
-                    acum_horas_general[key] += value
-                for key, value in acum_surcharge_values_empleado_periodo.items():
-                    acum_surcharge_values_general[key] += value
-
-        if total_general_valor == 0 and all(v == 0 for v in acum_horas_general.values()):
-            reporte_str += "No se encontraron recargos ni horas trabajadas en el período especificado para ningún empleado.\n"
-        else:
-            reporte_str += f"\n--- Resumen General de Horas y Recargos Acumulados para la Empresa ---\n"
-            # Mostrar el valor base de las horas ordinarias diurnas acumuladas
-            if acum_horas_general["horas_ordinarias_diurnas"] > 0:
-                base_value_for_total_ord_diur_general = acum_horas_general['horas_ordinarias_diurnas'] * empleado.obtener_valor_hora_ordinaria()
-                reporte_str += f"Total Horas Ordinarias Diurnas: {acum_horas_general['horas_ordinarias_diurnas']:.2f}h (Valor Base: ${base_value_for_total_ord_diur_general:,.2f})\n"
-            if acum_horas_general["horas_ordinarias_nocturnas"] > 0:
-                reporte_str += f"Total Horas Ordinarias Nocturnas: {acum_horas_general['horas_ordinarias_nocturnas']:.2f}h (Recargo: ${acum_surcharge_values_general['horas_ordinarias_nocturnas']:,.2f})\n"
-            if acum_horas_general["horas_extras_diurnas"] > 0:
-                reporte_str += f"Total Horas Extras Diurnas: {acum_horas_general['horas_extras_diurnas']:.2f}h (Recargo: ${acum_surcharge_values_general['horas_extras_diurnas']:,.2f})\n"
-            if acum_horas_general["horas_extras_nocturnas"] > 0:
-                reporte_str += f"Total Horas Extras Nocturnas: {acum_horas_general['horas_extras_nocturnas']:.2f}h (Recargo: ${acum_surcharge_values_general['horas_extras_nocturnas']:,.2f})\n"
-
-            # Resumen para Domingo (General)
-            if acum_horas_general["horas_ordinarias_diurnas_domingo"] > 0:
-                reporte_str += f"Total Horas Ordinarias Diurnas Domingo: {acum_horas_general['horas_ordinarias_diurnas_domingo']:.2f}h (Recargo: ${acum_surcharge_values_general['horas_ordinarias_diurnas_domingo']:,.2f})\n"
-            if acum_horas_general["horas_ordinarias_nocturnas_domingo"] > 0:
-                reporte_str += f"Total Horas Ordinarias Nocturnas Domingo: {acum_horas_general['horas_ordinarias_nocturnas_domingo']:.2f}h (Recargo: ${acum_surcharge_values_general['horas_ordinarias_nocturnas_domingo']:,.2f})\n"
-            if acum_horas_general["horas_extras_diurnas_domingo"] > 0:
-                reporte_str += f"Total Horas Extras Diurnas Domingo: {acum_horas_general['horas_extras_diurnas_domingo']:.2f}h (Recargo: ${acum_surcharge_values_general['horas_extras_diurnas_domingo']:,.2f})\n"
-            if acum_horas_general["horas_extras_nocturnas_domingo"] > 0:
-                reporte_str += f"Total Horas Extras Nocturnas Domingo: {acum_horas_general['horas_extras_nocturnas_domingo']:.2f}h (Recargo: ${acum_surcharge_values_general['horas_extras_nocturnas_domingo']:,.2f})\n"
-
-            # Resumen para Festivo (General)
-            if acum_horas_general["horas_ordinarias_diurnas_festivo"] > 0:
-                reporte_str += f"Total Horas Ordinarias Diurnas Festivo: {acum_horas_general['horas_ordinarias_diurnas_festivo']:.2f}h (Recargo: ${acum_surcharge_values_general['horas_ordinarias_diurnas_festivo']:,.2f})\n"
-            if acum_horas_general["horas_ordinarias_nocturnas_festivo"] > 0:
-                reporte_str += f"Total Horas Ordinarias Nocturnas Festivo: {acum_horas_general['horas_ordinarias_nocturnas_festivo']:.2f}h (Recargo: ${acum_surcharge_values_general['horas_ordinarias_nocturnas_festivo']:,.2f})\n"
-            if acum_horas_general["horas_extras_diurnas_festivo"] > 0:
-                reporte_str += f"Total Horas Extras Diurnas Festivo: {acum_horas_general['horas_extras_diurnas_festivo']:.2f}h (Recargo: ${acum_surcharge_values_general['horas_extras_diurnas_festivo']:,.2f})\n"
-            if acum_horas_general["horas_extras_nocturnas_festivo"] > 0:
-                reporte_str += f"Total Horas Extras Nocturnas Festivo: {acum_horas_general['horas_extras_nocturnas_festivo']:.2f}h (Recargo: ${acum_surcharge_values_general['horas_extras_nocturnas_festivo']:,.2f})\n"
-
-            reporte_str += f"\nTotal General de Valor Bruto para la Empresa: ${total_general_valor:,.2f}\n"
-            reporte_str += f"Total General de Recargos Adicionales para la Empresa: ${total_general_recargo_adicional:,.2f}\n"
-            reporte_str += f"Total General de Horas con Recargo para la Empresa: {total_general_horas_con_recargo:.2f} horas\n"
-        reporte_str += "---------------------------------------------\n"
         return reporte_str
 
-    def agregar_dia_festivo(self, fecha):
-        """Agrega una fecha a la lista de días festivos."""
-        if not isinstance(fecha, datetime.date):
-            raise ValueError("La fecha debe ser un objeto datetime.date.")
-        if fecha not in self.dias_festivos:
-            self.dias_festivos.append(fecha)
-            self.dias_festivos.sort() # Mantener la lista ordenada
-            return f"Día festivo {fecha.strftime('%Y-%m-%d')} agregado."
-        else:
-            return f"El día {fecha.strftime('%Y-%m-%d')} ya está en la lista de festivos."
-
-    def eliminar_dia_festivo(self, fecha):
-        """Elimina una fecha de la lista de días festivos."""
-        if fecha in self.dias_festivos:
-            self.dias_festivos.remove(fecha)
-            return f"Día festivo {fecha.strftime('%Y-%m-%d')} eliminado."
-        else:
-            return f"El día {fecha.strftime('%Y-%m-%d')} no se encontró en la lista de festivos."
-
-    def actualizar_porcentajes_recargo(self, 
-                                       nuevo_extra_diurna=None,
-                                       nuevo_extra_nocturna=None,
-                                       nuevo_ordinaria_nocturna_recargo=None, # Ahora es el recargo adicional
-                                       nuevo_recargo_domingofestivo_diurno_base_recargo=None, # Ahora es el recargo adicional
-                                       nuevo_extra_diurna_domingofestivo=None,
-                                       nuevo_extra_nocturna_domingofestivo=None,
-                                       nuevo_ordinaria_nocturna_domingofestivo_recargo=None, # Ahora es el recargo adicional
-                                       nuevo_recargo_domingofestivo_diurno_larga_jornada_recargo=None, # Ahora es el recargo adicional
-                                       nuevo_recargo_domingofestivo_nocturno_larga_jornada_recargo=None): # Ahora es el recargo adicional
-        """
-        Permite actualizar los multiplicadores de recargo.
-        Los valores de entrada para "extra" deben ser porcentajes totales (ej. 125, 200).
-        Los valores de entrada para "recargo" deben ser porcentajes adicionales (ej. 35, 75).
-        """
-        mensajes = []
+    def actualizar_porcentajes_recargo(self, nuevo_extra_diurna=None, nuevo_extra_nocturna=None,
+                                        nuevo_extra_diurna_domingofestivo=None, nuevo_extra_nocturna_domingofestivo=None,
+                                        nuevo_ordinaria_nocturna_recargo=None, nuevo_recargo_domingofestivo_diurno_base_recargo=None,
+                                        nuevo_ordinaria_nocturna_domingofestivo_recargo=None,
+                                        nuevo_recargo_domingofestivo_diurno_larga_jornada_recargo=None,
+                                        nuevo_recargo_domingofestivo_nocturno_larga_jornada_recargo=None):
+        
         if nuevo_extra_diurna is not None:
-            self.MULTIPLIER_HORA_EXTRA_DIURNA = nuevo_extra_diurna / 100
-            mensajes.append(f"Multiplicador de hora extra diurna actualizado a {nuevo_extra_diurna}%.")
+            self.MULTIPLIER_HORA_EXTRA_DIURNA = nuevo_extra_diurna / 100.0
         if nuevo_extra_nocturna is not None:
-            self.MULTIPLIER_HORA_EXTRA_NOCTURNA = nuevo_extra_nocturna / 100
-            mensajes.append(f"Multiplicador de hora extra nocturna actualizado a {nuevo_extra_nocturna}%.")
-        
-        # Para los recargos, sumamos 100% al porcentaje adicional para obtener el multiplicador total
-        if nuevo_ordinaria_nocturna_recargo is not None:
-            self.MULTIPLIER_HORA_ORDINARIA_NOCTURNA = 1.00 + (nuevo_ordinaria_nocturna_recargo / 100)
-            mensajes.append(f"Multiplicador de recargo nocturno actualizado a {nuevo_ordinaria_nocturna_recargo}% (total: {self.MULTIPLIER_HORA_ORDINARIA_NOCTURNA*100:.0f}%).")
-        
-        if nuevo_recargo_domingofestivo_diurno_base_recargo is not None:
-            self.MULTIPLIER_RECARGO_DOMINGOFESTIVO_DIURNO_BASE = 1.00 + (nuevo_recargo_domingofestivo_diurno_base_recargo / 100)
-            mensajes.append(f"Multiplicador de recargo dominical/festivo diurno base actualizado a {nuevo_recargo_domingofestivo_diurno_base_recargo}% (total: {self.MULTIPLIER_RECARGO_DOMINGOFESTIVO_DIURNO_BASE*100:.0f}%).")
-        
+            self.MULTIPLIER_HORA_EXTRA_NOCTURNA = nuevo_extra_nocturna / 100.0
         if nuevo_extra_diurna_domingofestivo is not None:
-            self.MULTIPLIER_EXTRA_DIURNA_DOMINGOFESTIVO = nuevo_extra_diurna_domingofestivo / 100
-            mensajes.append(f"Multiplicador de extra diurna dominical/festivo actualizado a {nuevo_extra_diurna_domingofestivo}%.")
+            self.MULTIPLIER_EXTRA_DIURNA_DOMINGOFESTIVO = nuevo_extra_diurna_domingofestivo / 100.0
         if nuevo_extra_nocturna_domingofestivo is not None:
-            self.MULTIPLIER_EXTRA_NOCTURNA_DOMINGOFESTIVO = nuevo_extra_nocturna_domingofestivo / 100
-            mensajes.append(f"Multiplicador de extra nocturna dominical/festivo actualizado a {nuevo_extra_nocturna_domingofestivo}%.")
-
-        if nuevo_ordinaria_nocturna_domingofestivo_recargo is not None: 
-            self.MULTIPLIER_ORDINARIA_NOCTURNA_DOMINGOFESTIVO = 1.00 + (nuevo_ordinaria_nocturna_domingofestivo_recargo / 100)
-            mensajes.append(f"Multiplicador de recargo ordinario nocturno dominical/festivo actualizado a {nuevo_ordinaria_nocturna_domingofestivo_recargo}% (total: {self.MULTIPLIER_ORDINARIA_NOCTURNA_DOMINGOFESTIVO*100:.0f}%).")
+            self.MULTIPLIER_EXTRA_NOCTURNA_DOMINGOFESTIVO = nuevo_extra_nocturna_domingofestivo / 100.0
         
+        if nuevo_ordinaria_nocturna_recargo is not None:
+            self.ADDITIONAL_PERCENTAGE_DECIMAL_HORA_ORDINARIA_NOCTURNA = nuevo_ordinaria_nocturna_recargo / 100.0
+        if nuevo_recargo_domingofestivo_diurno_base_recargo is not None:
+            self.ADDITIONAL_PERCENTAGE_DECIMAL_RECARGO_DOMINGOFESTIVO_DIURNO_BASE = nuevo_recargo_domingofestivo_diurno_base_recargo / 100.0
+        if nuevo_ordinaria_nocturna_domingofestivo_recargo is not None:
+            self.ADDITIONAL_PERCENTAGE_DECIMAL_ORDINARIA_NOCTURNA_DOMINGOFESTIVO = nuevo_ordinaria_nocturna_domingofestivo_recargo / 100.0
         if nuevo_recargo_domingofestivo_diurno_larga_jornada_recargo is not None:
-            self.MULTIPLIER_RECARGO_DOMINGOFESTIVO_DIURNO_LARGA_JORNADA = 1.00 + (nuevo_recargo_domingofestivo_diurno_larga_jornada_recargo / 100)
-            mensajes.append(f"Multiplicador de recargo dominical/festivo diurno (jornada larga) actualizado a {nuevo_recargo_domingofestivo_diurno_larga_jornada_recargo}% (total: {self.MULTIPLIER_RECARGO_DOMINGOFESTIVO_DIURNO_LARGA_JORNADA*100:.0f}%).")
+            self.ADDITIONAL_PERCENTAGE_DECIMAL_RECARGO_DOMINGOFESTIVO_DIURNO_LARGA_JORNADA = nuevo_recargo_domingofestivo_diurno_larga_jornada_recargo / 100.0
         if nuevo_recargo_domingofestivo_nocturno_larga_jornada_recargo is not None:
-            self.MULTIPLIER_RECARGO_DOMINGOFESTIVO_NOCTURNO_LARGA_JORNADA = 1.00 + (nuevo_recargo_domingofestivo_nocturno_larga_jornada_recargo / 100)
-            mensajes.append(f"Multiplicador de recargo dominical/festivo nocturno (jornada larga) actualizado a {nuevo_recargo_domingofestivo_nocturno_larga_jornada_recargo}% (total: {self.MULTIPLIER_RECARGO_DOMINGOFESTIVO_NOCTURNO_LARGA_JORNADA*100:.0f}%).")
+            self.ADDITIONAL_PERCENTAGE_DECIMAL_RECARGO_DOMINGOFESTIVO_NOCTURNO_LARGA_JORNADA = nuevo_recargo_domingofestivo_nocturno_larga_jornada_recargo / 100.0
 
-        return "\n".join(mensajes) if mensajes else "Ningún porcentaje fue actualizado."
+        return "Porcentajes de recargo actualizados con éxito."
 
-# --- Funciones para Guardar y Cargar Datos ---
 
-DATA_FILE = "recargos_data.json"
-
-def save_app_data(empleados, calculadora_instance):
-    """Guarda el estado actual de la aplicación en un archivo JSON."""
-    data_to_save = {
-        "empleados": {name: emp.to_dict() for name, emp in empleados.items()},
-        "dias_festivos": [d.isoformat() for d in calculadora_instance.dias_festivos],
-        "configuracion_recargos": {
-            "MULTIPLIER_HORA_EXTRA_DIURNA": calculadora_instance.MULTIPLIER_HORA_EXTRA_DIURNA,
-            "MULTIPLIER_HORA_EXTRA_NOCTURNA": calculadora_instance.MULTIPLIER_HORA_EXTRA_NOCTURNA,
-            "MULTIPLIER_HORA_ORDINARIA_NOCTURNA": calculadora_instance.MULTIPLIER_HORA_ORDINARIA_NOCTURNA,
-            "MULTIPLIER_ORDINARIA_NOCTURNA_DOMINGOFESTIVO": calculadora_instance.MULTIPLIER_ORDINARIA_NOCTURNA_DOMINGOFESTIVO, 
-            "MULTIPLIER_RECARGO_DOMINGOFESTIVO_DIURNO_BASE": calculadora_instance.MULTIPLIER_RECARGO_DOMINGOFESTIVO_DIURNO_BASE,
-            "MULTIPLIER_EXTRA_DIURNA_DOMINGOFESTIVO": calculadora_instance.MULTIPLIER_EXTRA_DIURNA_DOMINGOFESTIVO,
-            "MULTIPLIER_EXTRA_NOCTURNA_DOMINGOFESTIVO": calculadora_instance.MULTIPLIER_EXTRA_NOCTURNA_DOMINGOFESTIVO,
-            "MULTIPLIER_RECARGO_DOMINGOFESTIVO_DIURNO_LARGA_JORNADA": calculadora_instance.MULTIPLIER_RECARGO_DOMINGOFESTIVO_DIURNO_LARGA_JORNADA,
-            "MULTIPLIER_RECARGO_DOMINGOFESTIVO_NOCTURNO_LARGA_JORNADA": calculadora_instance.MULTIPLIER_RECARGO_DOMINGOFESTIVO_NOCTURNO_LARGA_JORNADA,
+def save_app_data(empleados, calculadora, filename="app_data.json"):
+    data = {
+        "empleados": {},
+        "calculadora_config": {
+            "MULTIPLIER_HORA_EXTRA_DIURNA": calculadora.MULTIPLIER_HORA_EXTRA_DIURNA,
+            "MULTIPLIER_HORA_EXTRA_NOCTURNA": calculadora.MULTIPLIER_HORA_EXTRA_NOCTURNA,
+            "MULTIPLIER_EXTRA_DIURNA_DOMINGOFESTIVO": calculadora.MULTIPLIER_EXTRA_DIURNA_DOMINGOFESTIVO,
+            "MULTIPLIER_EXTRA_NOCTURNA_DOMINGOFESTIVO": calculadora.MULTIPLIER_EXTRA_NOCTURNA_DOMINGOFESTIVO,
+            "ADDITIONAL_PERCENTAGE_DECIMAL_HORA_ORDINARIA_NOCTURNA": calculadora.ADDITIONAL_PERCENTAGE_DECIMAL_HORA_ORDINARIA_NOCTURNA,
+            "ADDITIONAL_PERCENTAGE_DECIMAL_RECARGO_DOMINGOFESTIVO_DIURNO_BASE": calculadora.ADDITIONAL_PERCENTAGE_DECIMAL_RECARGO_DOMINGOFESTIVO_DIURNO_BASE,
+            "ADDITIONAL_PERCENTAGE_DECIMAL_ORDINARIA_NOCTURNA_DOMINGOFESTIVO": calculadora.ADDITIONAL_PERCENTAGE_DECIMAL_ORDINARIA_NOCTURNA_DOMINGOFESTIVO,
+            "ADDITIONAL_PERCENTAGE_DECIMAL_RECARGO_DOMINGOFESTIVO_DIURNO_LARGA_JORNADA": calculadora.ADDITIONAL_PERCENTAGE_DECIMAL_RECARGO_DOMINGOFESTIVO_DIURNO_LARGA_JORNADA,
+            "ADDITIONAL_PERCENTAGE_DECIMAL_RECARGO_DOMINGOFESTIVO_NOCTURNO_LARGA_JORNADA": calculadora.ADDITIONAL_PERCENTAGE_DECIMAL_RECARGO_DOMINGOFESTIVO_NOCTURNO_LARGA_JORNADA,
+            "dias_festivos": [d.isoformat() for d in calculadora.dias_festivos]
         }
     }
+    for nombre, empleado in empleados.items():
+        data["empleados"][nombre] = {
+            "nombre": empleado.nombre,
+            "salario_mensual": empleado.salario_mensual,
+            "standard_daily_hours": empleado.standard_daily_hours,
+            "tipo_contrato": empleado.tipo_contrato, # Guardar el tipo_contrato
+            "jornadas_registradas": [
+                {
+                    "fecha": j["fecha"].isoformat(),
+                    "hora_entrada": j["hora_entrada"].isoformat(),
+                    "hora_salida": j["hora_salida"].isoformat()
+                } for j in empleado.jornadas_registradas
+            ]
+        }
     try:
-        with open(DATA_FILE, 'w', encoding='utf-8') as f:
-            json.dump(data_to_save, f, indent=4)
-        print(f"Datos guardados exitosamente en {DATA_FILE}")
+        with open(filename, 'w') as f:
+            json.dump(data, f, indent=4)
+        print(f"Datos de la aplicación guardados en {filename}")
     except IOError as e:
-        print(f"Error al guardar datos en {DATA_FILE}: {e}")
+        print(f"Error al guardar los datos: {e}")
 
-def load_app_data():
-    """Carga el estado de la aplicación desde un archivo JSON."""
+def load_app_data(filename="app_data.json"):
     empleados = {}
-    calculadora = CalculadoraRecargos() # Crea una instancia por defecto primero
+    calculadora = CalculadoraRecargos() # Inicializar con valores por defecto
+    
+    if os.path.exists(filename):
+        try:
+            with open(filename, 'r') as f:
+                data = json.load(f)
+            
+            # Cargar configuración de la calculadora
+            config = data.get("calculadora_config", {})
+            if "MULTIPLIER_HORA_EXTRA_DIURNA" in config:
+                calculadora.MULTIPLIER_HORA_EXTRA_DIURNA = config["MULTIPLIER_HORA_EXTRA_DIURNA"]
+            if "MULTIPLIER_HORA_EXTRA_NOCTURNA" in config:
+                calculadora.MULTIPLIER_HORA_EXTRA_NOCTURNA = config["MULTIPLIER_HORA_EXTRA_NOCTURNA"]
+            if "MULTIPLIER_EXTRA_DIURNA_DOMINGOFESTIVO" in config:
+                calculadora.MULTIPLIER_EXTRA_DIURNA_DOMINGOFESTIVO = config["MULTIPLIER_EXTRA_DIURNA_DOMINGOFESTIVO"]
+            if "MULTIPLIER_EXTRA_NOCTURNA_DOMINGOFESTIVO" in config:
+                calculadora.MULTIPLIER_EXTRA_NOCTURNA_DOMINGOFESTIVO = config["MULTIPLIER_EXTRA_NOCTURNA_DOMINGOFESTIVO"]
+            
+            if "ADDITIONAL_PERCENTAGE_DECIMAL_HORA_ORDINARIA_NOCTURNA" in config:
+                calculadora.ADDITIONAL_PERCENTAGE_DECIMAL_HORA_ORDINARIA_NOCTURNA = config["ADDITIONAL_PERCENTAGE_DECIMAL_HORA_ORDINARIA_NOCTURNA"]
+            if "ADDITIONAL_PERCENTAGE_DECIMAL_RECARGO_DOMINGOFESTIVO_DIURNO_BASE" in config:
+                calculadora.ADDITIONAL_PERCENTAGE_DECIMAL_RECARGO_DOMINGOFESTIVO_DIURNO_BASE = config["ADDITIONAL_PERCENTAGE_DECIMAL_RECARGO_DOMINGOFESTIVO_DIURNO_BASE"]
+            if "ADDITIONAL_PERCENTAGE_DECIMAL_ORDINARIA_NOCTURNA_DOMINGOFESTIVO" in config:
+                calculadora.ADDITIONAL_PERCENTAGE_DECIMAL_ORDINARIA_NOCTURNA_DOMINGOFESTIVO = config["ADDITIONAL_PERCENTAGE_DECIMAL_ORDINARIA_NOCTURNA_DOMINGOFESTIVO"]
+            if "ADDITIONAL_PERCENTAGE_DECIMAL_RECARGO_DOMINGOFESTIVO_DIURNO_LARGA_JORNADA" in config:
+                calculadora.ADDITIONAL_PERCENTAGE_DECIMAL_RECARGO_DOMINGOFESTIVO_DIURNO_LARGA_JORNADA = config["ADDITIONAL_PERCENTAGE_DECIMAL_RECARGO_DOMINGOFESTIVO_DIURNO_LARGA_JORNADA"]
+            if "ADDITIONAL_PERCENTAGE_DECIMAL_RECARGO_DOMINGOFESTIVO_NOCTURNO_LARGA_JORNADA" in config:
+                calculadora.ADDITIONAL_PERCENTAGE_DECIMAL_RECARGO_DOMINGOFESTIVO_NOCTURNO_LARGA_JORNADA = config["ADDITIONAL_PERCENTAGE_DECIMAL_RECARGO_DOMINGOFESTIVO_NOCTURNO_LARGA_JORNADA"]
 
-    if not os.path.exists(DATA_FILE):
-        print(f"Archivo de datos '{DATA_FILE}' no encontrado. Iniciando con datos vacíos.")
-        return empleados, calculadora
+            if "dias_festivos" in config:
+                calculadora.dias_festivos = sorted([datetime.date.fromisoformat(d) for d in config["dias_festivos"]])
 
-    try:
-        with open(DATA_FILE, 'r', encoding='utf-8') as f:
-            loaded_data = json.load(f)
+            # Cargar empleados de forma más segura
+            for nombre_empleado_key, emp_data in data.get("empleados", {}).items():
+                try:
+                    # Usar .get() con valores por defecto o comprobaciones
+                    nombre = emp_data.get("nombre")
+                    salario_mensual = emp_data.get("salario_mensual")
+                    standard_daily_hours = emp_data.get("standard_daily_hours", 8)
+                    tipo_contrato = emp_data.get("tipo_contrato", "indefinido") # Añadir valor por defecto aquí
 
-        # Cargar empleados
-        for name, emp_dict in loaded_data.get("empleados", {}).items():
-            empleados[name] = Empleado.from_dict(emp_dict)
-        
-        # Cargar días festivos
-        loaded_festivos_str = loaded_data.get("dias_festivos", [])
-        calculadora.dias_festivos = [datetime.date.fromisoformat(d_str) for d_str in loaded_festivos_str]
-        calculadora.dias_festivos.sort() # Asegurar que estén ordenados
+                    if not all([nombre, salario_mensual is not None]):
+                        print(f"Advertencia: Datos incompletos para un empleado (nombre o salario mensual). Saltando entrada: {emp_data}")
+                        continue # Saltar esta entrada si faltan datos esenciales
 
-        # Cargar configuraciones de recargos
-        loaded_config = loaded_data.get("configuracion_recargos", {})
-        
-        calculadora.MULTIPLIER_HORA_EXTRA_DIURNA = loaded_config.get("MULTIPLIER_HORA_EXTRA_DIURNA", 1.25)
-        calculadora.MULTIPLIER_HORA_EXTRA_NOCTURNA = loaded_config.get("MULTIPLIER_HORA_EXTRA_NOCTURNA", 1.75)
-        calculadora.MULTIPLIER_HORA_ORDINARIA_NOCTURNA = loaded_config.get("MULTIPLIER_HORA_ORDINARIA_NOCTURNA", 1.35)
-        calculadora.MULTIPLIER_RECARGO_DOMINGOFESTIVO_DIURNO_BASE = loaded_config.get("MULTIPLIER_RECARGO_DOMINGOFESTIVO_DIURNO_BASE", 1.80) # Actualizado
-        
-        calculadora.MULTIPLIER_EXTRA_DIURNA_DOMINGOFESTIVO = loaded_config.get("MULTIPLIER_EXTRA_DIURNA_DOMINGOFESTIVO", 2.00)
-        calculadora.MULTIPLIER_EXTRA_NOCTURNA_DOMINGOFESTIVO = loaded_config.get("MULTIPLIER_EXTRA_NOCTURNA_DOMINGOFESTIVO", 2.50)
+                    empleado = Empleado(nombre, salario_mensual, standard_daily_hours, tipo_contrato)
+                    
+                    jornadas_raw = emp_data.get("jornadas_registradas", [])
+                    empleado.jornadas_registradas = []
+                    for j in jornadas_raw:
+                        try:
+                            jornada_parsed = {
+                                "fecha": datetime.date.fromisoformat(j["fecha"]),
+                                "hora_entrada": datetime.time.fromisoformat(j["hora_entrada"]),
+                                "hora_salida": datetime.time.fromisoformat(j["hora_salida"])
+                            }
+                            empleado.jornadas_registradas.append(jornada_parsed)
+                        except (KeyError, ValueError) as je:
+                            print(f"Advertencia: Jornada mal formada para empleado {nombre}. Saltando jornada: {j}. Error: {je}")
+                            continue
 
-        calculadora.MULTIPLIER_ORDINARIA_NOCTURNA_DOMINGOFESTIVO = loaded_config.get("MULTIPLIER_ORDINARIA_NOCTURNA_DOMINGOFESTIVO", 2.10)
-        calculadora.MULTIPLIER_RECARGO_DOMINGOFESTIVO_DIURNO_LARGA_JORNADA = loaded_config.get("MULTIPLIER_RECARGO_DOMINGOFESTIVO_DIURNO_LARGA_JORNADA", 2.80) # Actualizado
-        calculadora.MULTIPLIER_RECARGO_DOMINGOFESTIVO_NOCTURNO_LARGA_JORNADA = loaded_config.get("MULTIPLIER_RECARGO_DOMINGOFESTIVO_NOCTURNO_LARGA_JORNADA", 3.10)
+                    empleados[nombre] = empleado
+                except (KeyError, ValueError) as e:
+                    print(f"Error al procesar datos de empleado '{nombre_empleado_key}': {e}. Saltando este empleado.")
+                    continue
 
-
-        print(f"Datos cargados exitosamente desde {DATA_FILE}")
-        return empleados, calculadora
-
-    except (json.JSONDecodeError, IOError) as e:
-        print(f"Error al cargar datos desde {DATA_FILE}: {e}. Iniciando con datos vacíos.")
-        return {}, CalculadoraRecargos() # En caso de error, iniciar con datos por defecto
+            print(f"Datos de la aplicación cargados desde {filename}")
+        except (IOError, json.JSONDecodeError) as e:
+            print(f"Error al cargar los datos del archivo {filename}: {e}. Se iniciará con datos vacíos.")
+    else:
+        print(f"Archivo {filename} no encontrado. Se iniciará con datos vacíos.")
+    
+    return empleados, calculadora
