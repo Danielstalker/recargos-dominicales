@@ -11,11 +11,12 @@ class Empleado:
         self.jornadas_registradas = [] # Almacena diccionarios de jornadas
 
     def obtener_valor_hora_ordinaria(self):
-        # Asume un mes de 30 días y 8 horas diarias para 240 horas/mes
-        # Se usa self.standard_daily_hours para mayor precisión si el estándar cambia
-        if self.standard_daily_hours <= 0:
+        # CAMBIO CLAVE: Ahora se calcula el valor de la hora ordinaria dividiendo el salario mensual por 220 horas.
+        # Esto asume una base de 220 horas mensuales para el cálculo del valor de la hora ordinaria,
+        # independientemente de las horas diarias estándar registradas para el empleado.
+        if self.salario_mensual <= 0 or 220 <= 0: # Asegurarse de que no haya división por cero o valores negativos
             return 0.0
-        return self.salario_mensual / (30 * self.standard_daily_hours)
+        return self.salario_mensual / 220.0 # Usar 220 horas fijas para el cálculo del valor de la hora ordinaria
 
     def registrar_jornada(self, fecha, hora_entrada, hora_salida):
         jornada = {

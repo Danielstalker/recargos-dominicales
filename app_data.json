@@ -149,6 +149,80 @@
                     "hora_salida": "22:00:00"
                 }
             ]
+        },
+        "Ana P\u00e9rez": {
+            "nombre": "Ana P\u00e9rez",
+            "salario_mensual": 1423400,
+            "standard_daily_hours": 8,
+            "tipo_contrato": "indefinido",
+            "jornadas_registradas": [
+                {
+                    "fecha": "2025-07-13",
+                    "hora_entrada": "08:00:00",
+                    "hora_salida": "16:00:00"
+                },
+                {
+                    "fecha": "2025-07-15",
+                    "hora_entrada": "18:00:00",
+                    "hora_salida": "06:00:00"
+                },
+                {
+                    "fecha": "2025-07-27",
+                    "hora_entrada": "00:00:00",
+                    "hora_salida": "00:00:00"
+                },
+                {
+                    "fecha": "2025-07-28",
+                    "hora_entrada": "08:00:00",
+                    "hora_salida": "15:00:00"
+                }
+            ]
+        },
+        "Juan Garc\u00eda": {
+            "nombre": "Juan Garc\u00eda",
+            "salario_mensual": 2500000,
+            "standard_daily_hours": 8,
+            "tipo_contrato": "t\u00e9rmino fijo",
+            "jornadas_registradas": [
+                {
+                    "fecha": "2025-07-20",
+                    "hora_entrada": "07:00:00",
+                    "hora_salida": "17:00:00"
+                },
+                {
+                    "fecha": "2025-07-16",
+                    "hora_entrada": "22:00:00",
+                    "hora_salida": "06:00:00"
+                },
+                {
+                    "fecha": "2025-07-29",
+                    "hora_entrada": "06:00:00",
+                    "hora_salida": "04:00:00"
+                },
+                {
+                    "fecha": "2025-12-25",
+                    "hora_entrada": "21:00:00",
+                    "hora_salida": "21:00:00"
+                }
+            ]
+        },
+        "Pedro L\u00f3pez": {
+            "nombre": "Pedro L\u00f3pez",
+            "salario_mensual": 1000000,
+            "standard_daily_hours": 6,
+            "tipo_contrato": "obra o labor",
+            "jornadas_registradas": [
+                {
+                    "fecha": "2025-07-14",
+                    "hora_entrada": "09:00:00",
+                    "hora_salida": "19:00:00"
+                },
+                {
+                    "fecha": "2025-12-25",
+                    "hora_entrada": "21:00:00",
+                    "hora_salida": "21:00:00"
+                }
+            ]
         }
     },
     "calculadora_config": {
@@ -157,10 +231,10 @@
         "MULTIPLIER_EXTRA_DIURNA_DOMINGOFESTIVO": 2.0,
         "MULTIPLIER_EXTRA_NOCTURNA_DOMINGOFESTIVO": 2.5,
         "ADDITIONAL_PERCENTAGE_DECIMAL_HORA_ORDINARIA_NOCTURNA": 0.35,
-        "ADDITIONAL_PERCENTAGE_DECIMAL_RECARGO_DOMINGOFESTIVO_DIURNO_BASE": 0.8,
-        "ADDITIONAL_PERCENTAGE_DECIMAL_ORDINARIA_NOCTURNA_DOMINGOFESTIVO": 1.15,
+        "ADDITIONAL_PERCENTAGE_DECIMAL_RECARGO_DOMINGOFESTIVO_DIURNO_BASE": 1.8,
+        "ADDITIONAL_PERCENTAGE_DECIMAL_ORDINARIA_NOCTURNA_DOMINGOFESTIVO": 2.15,
         "ADDITIONAL_PERCENTAGE_DECIMAL_RECARGO_DOMINGOFESTIVO_DIURNO_LARGA_JORNADA": 1.8,
-        "ADDITIONAL_PERCENTAGE_DECIMAL_RECARGO_DOMINGOFESTIVO_NOCTURNO_LARGA_JORNADA": 2.15,
+        "ADDITIONAL_PERCENTAGE_DECIMAL_RECARGO_DOMINGOFESTIVO_NOCTURNO_LARGA_JORNADA": 2.25,
         "dias_festivos": [
             "2025-01-01",
             "2025-01-06",
