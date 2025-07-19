@@ -147,6 +147,11 @@
                     "fecha": "2025-06-13",
                     "hora_entrada": "14:00:00",
                     "hora_salida": "22:00:00"
+                },
+                {
+                    "fecha": "2025-07-01",
+                    "hora_entrada": "08:00:00",
+                    "hora_salida": "18:00:00"
                 }
             ]
         },

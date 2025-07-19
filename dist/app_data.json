@@ -1,0 +1,177 @@
+{
+    "empleados": {
+        "Luis Miguel Cardoso": {
+            "nombre": "Luis Miguel Cardoso",
+            "salario_mensual": 1423500.0,
+            "standard_daily_hours": 8,
+            "tipo_contrato": "indefinido",
+            "jornadas_registradas": [
+                {
+                    "fecha": "2025-06-01",
+                    "hora_entrada": "06:00:00",
+                    "hora_salida": "14:00:00"
+                },
+                {
+                    "fecha": "2025-06-02",
+                    "hora_entrada": "14:00:00",
+                    "hora_salida": "22:00:00"
+                },
+                {
+                    "fecha": "2025-06-03",
+                    "hora_entrada": "08:00:00",
+                    "hora_salida": "16:00:00"
+                },
+                {
+                    "fecha": "2025-06-04",
+                    "hora_entrada": "14:00:00",
+                    "hora_salida": "22:00:00"
+                },
+                {
+                    "fecha": "2025-06-05",
+                    "hora_entrada": "14:00:00",
+                    "hora_salida": "22:00:00"
+                },
+                {
+                    "fecha": "2025-06-06",
+                    "hora_entrada": "14:00:00",
+                    "hora_salida": "22:00:00"
+                },
+                {
+                    "fecha": "2025-06-07",
+                    "hora_entrada": "14:00:00",
+                    "hora_salida": "22:00:00"
+                },
+                {
+                    "fecha": "2025-06-09",
+                    "hora_entrada": "22:00:00",
+                    "hora_salida": "06:00:00"
+                },
+                {
+                    "fecha": "2025-06-10",
+                    "hora_entrada": "22:00:00",
+                    "hora_salida": "06:00:00"
+                },
+                {
+                    "fecha": "2025-06-11",
+                    "hora_entrada": "22:00:00",
+                    "hora_salida": "06:00:00"
+                },
+                {
+                    "fecha": "2025-06-12",
+                    "hora_entrada": "22:00:00",
+                    "hora_salida": "06:00:00"
+                },
+                {
+                    "fecha": "2025-06-13",
+                    "hora_entrada": "14:00:00",
+                    "hora_salida": "10:00:00"
+                },
+                {
+                    "fecha": "2025-06-14",
+                    "hora_entrada": "06:00:00",
+                    "hora_salida": "14:00:00"
+                },
+                {
+                    "fecha": "2025-06-15",
+                    "hora_entrada": "12:00:00",
+                    "hora_salida": "20:00:00"
+                },
+                {
+                    "fecha": "2025-06-16",
+                    "hora_entrada": "06:00:00",
+                    "hora_salida": "14:00:00"
+                },
+                {
+                    "fecha": "2025-06-17",
+                    "hora_entrada": "06:00:00",
+                    "hora_salida": "14:00:00"
+                },
+                {
+                    "fecha": "2025-06-18",
+                    "hora_entrada": "14:00:00",
+                    "hora_salida": "22:00:00"
+                },
+                {
+                    "fecha": "2025-06-19",
+                    "hora_entrada": "06:00:00",
+                    "hora_salida": "14:00:00"
+                },
+                {
+                    "fecha": "2025-06-20",
+                    "hora_entrada": "06:00:00",
+                    "hora_salida": "14:00:00"
+                },
+                {
+                    "fecha": "2025-06-21",
+                    "hora_entrada": "08:00:00",
+                    "hora_salida": "16:00:00"
+                },
+                {
+                    "fecha": "2025-06-24",
+                    "hora_entrada": "14:00:00",
+                    "hora_salida": "22:00:00"
+                },
+                {
+                    "fecha": "2025-06-25",
+                    "hora_entrada": "14:00:00",
+                    "hora_salida": "22:00:00"
+                },
+                {
+                    "fecha": "2025-06-26",
+                    "hora_entrada": "14:00:00",
+                    "hora_salida": "22:00:00"
+                },
+                {
+                    "fecha": "2025-06-27",
+                    "hora_entrada": "14:00:00",
+                    "hora_salida": "22:00:00"
+                },
+                {
+                    "fecha": "2025-06-28",
+                    "hora_entrada": "14:00:00",
+                    "hora_salida": "22:00:00"
+                },
+                {
+                    "fecha": "2025-06-29",
+                    "hora_entrada": "14:00:00",
+                    "hora_salida": "22:00:00"
+                },
+                {
+                    "fecha": "2025-06-30",
+                    "hora_entrada": "14:00:00",
+                    "hora_salida": "22:00:00"
+                }
+            ]
+        }
+    },
+    "calculadora_config": {
+        "MULTIPLIER_HORA_EXTRA_DIURNA": 1.25,
+        "MULTIPLIER_HORA_EXTRA_NOCTURNA": 1.75,
+        "MULTIPLIER_EXTRA_DIURNA_DOMINGOFESTIVO": 2.0,
+        "MULTIPLIER_EXTRA_NOCTURNA_DOMINGOFESTIVO": 2.5,
+        "ADDITIONAL_PERCENTAGE_DECIMAL_HORA_ORDINARIA_NOCTURNA": 0.35,
+        "ADDITIONAL_PERCENTAGE_DECIMAL_RECARGO_DOMINGOFESTIVO_DIURNO_BASE": 1.8,
+        "ADDITIONAL_PERCENTAGE_DECIMAL_ORDINARIA_NOCTURNA_DOMINGOFESTIVO": 1.1,
+        "ADDITIONAL_PERCENTAGE_DECIMAL_RECARGO_DOMINGOFESTIVO_DIURNO_LARGA_JORNADA": 0.8,
+        "ADDITIONAL_PERCENTAGE_DECIMAL_RECARGO_DOMINGOFESTIVO_NOCTURNO_LARGA_JORNADA": 2.15,
+        "dias_festivos": [
+            "2025-01-01",
+            "2025-01-06",
+            "2025-03-24",
+            "2025-04-17",
+            "2025-04-18",
+            "2025-05-01",
+            "2025-05-26",
+            "2025-06-16",
+            "2025-06-23",
+            "2025-07-20",
+            "2025-08-07",
+            "2025-08-18",
+            "2025-10-13",
+            "2025-11-03",
+            "2025-11-17",
+            "2025-12-08",
+            "2025-12-25"
+        ]
+    }
+}
